@@ -1,0 +1,5 @@
+import os
+
+
+NOTION_DATABASE_ID = os.getenv('NOTION_DATABASE_ID')
+NOTION_TOKEN = os.getenv('NOTION_TOKEN')
