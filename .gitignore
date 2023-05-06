@@ -2,3 +2,5 @@
 *.python-version
 *.json
 __pycache__
+.vscode
+*.pickle
