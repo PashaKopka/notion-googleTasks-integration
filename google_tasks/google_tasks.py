@@ -81,13 +81,27 @@ class GoogleTaskList:
         for task in data:
             res[task['id']] = {
                 'title': task['title'],
-                'notes': task['notes'],  # TODO note or notes?
+                'notes': task.get('notes'),
                 'updated': datetime.datetime.strptime(task['updated'], self.GOOGLE_TIME_FORMAT),
                 'status': GoogleTaskStatus(task['status']),
                 'due': datetime.datetime.strptime(task['due'], self.GOOGLE_TIME_FORMAT) if 'due' in task else '',
             }
 
         return res
+    
+    def update_google_task(self, task_id, data: dict) -> None:
+        status = str(GoogleTaskStatus(data['status']))
+        self.connect.tasks().update(
+            tasklist=self._list_id,
+            task=task_id,
+            body={
+                'id': task_id,
+                'title': data['title'],
+                'notes': data['notes'],
+                'due': data['due'],
+                'status': status,
+            }
+        ).execute()
     
     def get_notion_ids(self) -> list[str]:
         """
@@ -107,6 +121,10 @@ class GoogleTaskList:
                 'deleted': str(deleted)
             }
         ).execute()
+
+    def get_new_google_tasks(self) -> dict[str, dict]:
+        tasks = self.get_google_tasks()
+        return {task_id: task for task_id, task in tasks.items() if not task['notes']}
 
     def __getitem__(self, task_id):
         return self.get_google_tasks[task_id]

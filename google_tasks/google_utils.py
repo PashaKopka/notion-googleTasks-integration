@@ -14,9 +14,9 @@ class GoogleTaskStatus:
         elif isinstance(status, bool):
             self._status = status
         elif isinstance(status, GoogleTaskStatus):
-            self = status
+            self._status = status._status
         else:
-            raise TypeError('Status must be str or bool')
+            raise TypeError('Status must be str or bool or GoogleTaskStatus')
     
     def _str_to_bool(self, status: str) -> bool:
         return self.GOOGLE_TASK_STATUSES_STR_TO_BOOL[status]
