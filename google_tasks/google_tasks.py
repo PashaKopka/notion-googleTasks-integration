@@ -5,22 +5,23 @@ import pickle
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from config import GOOGLE_CLIENT_SECRET_FILE, GOOGLE_API_NAME, GOOGLE_API_VERSION, GOOGLE_API_SCOPES
+from config import (
+    GOOGLE_CLIENT_SECRET_FILE, GOOGLE_API_NAME,
+    GOOGLE_API_VERSION, GOOGLE_API_SCOPES, GOOGLE_TASK_LIST_ID
+)
+from google_tasks.google_utils import GoogleTaskStatus
 
 
-class GoogleTasks:
+class GoogleTaskList:
     GOOGLE_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%fZ'
-    GOOGLE_TASK_STATUSES = {
-        'needsAction': False,
-        'completed': True
-    }
 
     def __init__(
         self,
-        secret_file_path: str,
-        api_name: str,
-        api_version: str,
-        scopes: list[str]
+        task_list_id: str,
+        secret_file_path: str = GOOGLE_CLIENT_SECRET_FILE,
+        api_name: str = GOOGLE_API_NAME,
+        api_version: str = GOOGLE_API_VERSION,
+        scopes: list[str] = GOOGLE_API_SCOPES,
     ) -> None:
         if not os.path.exists(secret_file_path):
             raise FileNotFoundError(f'File {secret_file_path} not found')
@@ -31,6 +32,7 @@ class GoogleTasks:
         self._scopes = scopes
         self._cred = None
         self._pickle_file = f'token_{self._api_name}_{self._api_version}.pickle'
+        self._list_id = task_list_id
 
         self._create_google_connect()
 
@@ -68,44 +70,55 @@ class GoogleTasks:
     def get_google_task_lists(self):  # TODO
         return self.connect.tasklists().list().execute()
 
-    def get_google_tasks(self, task_list_id, with_completed=True):
-        data = self.connect.tasks().list(tasklist=task_list_id,
-                                         showCompleted=with_completed, showHidden=True).execute()['items']
+    def get_google_tasks(self, with_completed=True, show_hidden=True):
+        data = self.connect.tasks().list(
+            tasklist=self._list_id,
+            showCompleted=with_completed,
+            showHidden=show_hidden
+        ).execute()['items']
+        
         res = {}
         for task in data:
             res[task['id']] = {
                 'title': task['title'],
-                'notes': task['notes'],
+                'notes': task['notes'],  # TODO note or notes?
                 'updated': datetime.datetime.strptime(task['updated'], self.GOOGLE_TIME_FORMAT),
-                'notes': task['notes'],
-                'done': self.GOOGLE_TASK_STATUSES[task['status']],
+                'status': GoogleTaskStatus(task['status']),
                 'due': datetime.datetime.strptime(task['due'], self.GOOGLE_TIME_FORMAT) if 'due' in task else '',
             }
 
         return res
+    
+    def get_notion_ids(self) -> list[str]:
+        """
+        returns list of notion ids, which was synced to google task list
+        """
+        return [task['notes'] for task in self.get_google_tasks().values() if task['notes']]
 
-    def add_task_to_google_task_list(self, task_list_id, title, notes, due=None, status='needsAction', deleted='False'):
+    def add_task_to_google_task_list(self, title, notes, due=None, status=False, deleted: bool = False):
+        status = str(GoogleTaskStatus(status))
         self.connect.tasks().insert(
-            tasklist=task_list_id,
+            tasklist=self._list_id,
             body={
                 'title': title,
                 'notes': notes,
                 'due': due,
                 'status': status,
-                'deleted': deleted
+                'deleted': str(deleted)
             }
         ).execute()
 
-    def __getitem__(self, task_list_id):
-        return self.get_google_tasks(task_list_id)
+    def __getitem__(self, task_id):
+        return self.get_google_tasks[task_id]
 
 
 if __name__ == '__main__':
-    g_tasks = GoogleTasks(
+    g_tasks = GoogleTaskList(
+        GOOGLE_TASK_LIST_ID,
         GOOGLE_CLIENT_SECRET_FILE,
         GOOGLE_API_NAME,
         GOOGLE_API_VERSION,
         GOOGLE_API_SCOPES
     )
-    data = g_tasks.get_google_tasks('YTBIeks1amJKQUJLdnVqcg')
+    data = g_tasks.get_google_tasks()
     print(data)
