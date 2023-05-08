@@ -33,10 +33,19 @@ class GoogleTaskList:
         self._cred = None
         self._pickle_file = f'token_{self._api_name}_{self._api_version}.pickle'
         self._list_id = task_list_id
+        self._notion_ids = []
 
         self._create_google_connect()
 
-    def _create_google_connect(self):
+    def _update_notion_ids(func):  # TODO remove this!
+        def wrapper(self, *args, **kwargs):
+            self._notion_ids = self.get_notion_ids()
+            result = func(self, *args, **kwargs)
+            return result
+        return wrapper
+
+    def _create_google_connect(self) -> None:
+        # TODO finish it
         if os.path.exists(self._pickle_file):
             with open(self._pickle_file, 'rb') as token:
                 self._cred = pickle.load(token)
@@ -61,73 +70,56 @@ class GoogleTaskList:
             os.remove(self._pickle_file)
             raise e
 
-    # TODO maybe useless, remove
-    def convert_to_RFC_datetime(year=1900, month=1, day=1, hour=0, minute=0):
-        dt = datetime.datetime(year, month, day, hour,
-                               minute, 0, 000).isoformat() + 'Z'
-        return dt
-
-    def get_google_task_lists(self):  # TODO
-        return self.connect.tasklists().list().execute()
-
-    def get_google_tasks(self, with_completed=True, show_hidden=True):
+    def get_all_tasks(self, with_completed: bool = True, show_hidden: bool = True):
         data = self.connect.tasks().list(
             tasklist=self._list_id,
             showCompleted=with_completed,
             showHidden=show_hidden
         ).execute()['items']
-        
+
         res = {}
         for task in data:
-            res[task['id']] = {
-                'title': task['title'],
-                'notes': task.get('notes'),
-                'updated': datetime.datetime.strptime(task['updated'], self.GOOGLE_TIME_FORMAT),
-                'status': GoogleTaskStatus(task['status']),
-                'due': datetime.datetime.strptime(task['due'], self.GOOGLE_TIME_FORMAT) if 'due' in task else '',
-            }
+            res[task['id']] = self._parse_task_data(task)
 
         return res
-    
-    def update_google_task(self, task_id, data: dict) -> None:
-        status = str(GoogleTaskStatus(data['status']))
+
+    def get_task(self, task_id: str):
+        task = self.connect.tasks().get(
+            tasklist=self._list_id,
+            task=task_id
+        ).execute()
+        return self._parse_task_data(task)
+
+    def _parse_task_data(self, task: dict) -> dict:
+        return {
+            'id': task['id'],
+            'title': task['title'],
+            'notes': task.get('notes'),
+            'updated': datetime.datetime.strptime(task['updated'], self.GOOGLE_TIME_FORMAT),
+            'status': GoogleTaskStatus(task['status']),
+            'due': datetime.datetime.strptime(task['due'], self.GOOGLE_TIME_FORMAT) if 'due' in task else '',
+        }
+
+    def update_task(self, task_id: str, data: dict) -> None:
         self.connect.tasks().update(
             tasklist=self._list_id,
             task=task_id,
-            body={
-                'id': task_id,
-                'title': data['title'],
-                'notes': data['notes'],
-                'due': data['due'],
-                'status': status,
-            }
+            body=data
         ).execute()
-    
-    def get_notion_ids(self) -> list[str]:
-        """
-        returns list of notion ids, which was synced to google task list
-        """
-        return [task['notes'] for task in self.get_google_tasks().values() if task['notes']]
 
-    def add_task_to_google_task_list(self, title, notes, due=None, status=False, deleted: bool = False):
-        status = str(GoogleTaskStatus(status))
-        self.connect.tasks().insert(
+    def add_task(self, data: dict) -> str:
+        res = self.connect.tasks().insert(
             tasklist=self._list_id,
-            body={
-                'title': title,
-                'notes': notes,
-                'due': due,
-                'status': status,
-                'deleted': str(deleted)
-            }
+            body=data
         ).execute()
-
-    def get_new_google_tasks(self) -> dict[str, dict]:
-        tasks = self.get_google_tasks()
-        return {task_id: task for task_id, task in tasks.items() if not task['notes']}
+        return res['id']
 
     def __getitem__(self, task_id):
-        return self.get_google_tasks[task_id]
+        return self.get_task(task_id)
+
+    def get_not_synced_tasks(self):
+        tasks = self.get_all_tasks()
+        return {task_id: task for task_id, task in tasks.items() if not task['notes']}
 
 
 if __name__ == '__main__':
@@ -138,5 +130,5 @@ if __name__ == '__main__':
         GOOGLE_API_VERSION,
         GOOGLE_API_SCOPES
     )
-    data = g_tasks.get_google_tasks()
+    data = g_tasks.get_tasks()
     print(data)

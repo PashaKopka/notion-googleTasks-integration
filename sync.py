@@ -1,73 +1,70 @@
+import datetime
 import time
 import config
+from google_tasks.google_utils import GoogleTaskStatus
 
 from notion.notion_db import NotionDatabase
 from google_tasks.google_tasks import GoogleTaskList
-from notion.notion_props import AbstractNotionProperty
+from notion.notion_props import AbstractNotionProperty, NotionText
+from notion import notion_props
 
 
 class NotionTasksSynchronizer:
 
     def __init__(self, notion: NotionDatabase, google_task_list: GoogleTaskList) -> None:
-        self._notion = notion
+        self._notion_db = notion
         self._google_task_list = google_task_list
-        self._synced_notion_items_ids = []  # notion items ids, which are already uploaded to google task list
-    
-    def update_google_task_list(self):
-        """
-        Firstly we should get all tasks inside google task list
-        There will be notion items ids in notes field
-        We can know, which notion items are already uploaded to google task list
-        """
-        notion_items_ids_in_google_tasks = self._google_task_list.get_notion_ids()
-        self._synced_notion_items_ids.extend(notion_items_ids_in_google_tasks)
-        new_notion_items = self._notion.get_new_rows(self._synced_notion_items_ids)
-        
-        for notion_item_id, notion_item in new_notion_items.items():
-            self._upload_notion_item_to_google_item(notion_item_id, notion_item)
-    
-    def update_notion_database(self):
-        """
-        Here we should get tasks from google task list, 
-        where notes field has not notion item id. These tasks 
-        means new tasks which were created in google task list
-        We should create new notion items for these tasks, get their ids
-        and update notes field in google task list
-        """
-        new_google_tasks = self._google_task_list.get_new_google_tasks()
-        for task_id, task_data in new_google_tasks.items():
-            self._upload_google_task_to_notion_database(task_id, task_data)
 
     def sync(self):
-        self.update_google_task_list()
-        self.update_notion_database()
-    
-    def _upload_google_task_to_notion_database(self, task_id: str, task_data: dict) -> None:
-        new_page_id = self._notion.add_row_to_notion_database(
-            task_data['title'],
-            bool(task_data['status'])
-        )
-        task_data['notes'] = new_page_id
-        self._update_google_task(task_id=task_id, update_data=task_data)
-    
-    def _update_google_task(self, task_id: str, update_data: dict) -> None:
-        self._google_task_list.update_google_task(
-            task_id,
-            data=update_data
-        )
+        not_synced_notion_items = self._notion_db.get_not_synced_rows()
+        for item_id, item in not_synced_notion_items.items():
+            self._add_notion_item_to_google_tasks(item_id, item)
 
-    def _upload_notion_item_to_google_item(self, notion_item_id: str, item: dict) -> None:
-        title = item['props'][self._notion.title_prop_name].value
-        self._google_task_list.add_task_to_google_task_list(
-            title, notion_item_id, None, False, False
+        not_synced_google_items = self._google_task_list.get_not_synced_tasks()
+        for item_id, item in not_synced_google_items.items():
+            self._add_google_task_to_notion(item_id, item)
+
+    def _add_google_task_to_notion(self, item_id: str, item: dict):
+        data = [
+            notion_props.NotionTitle('Name', item['title']),
+            notion_props.NotionCheckbox('Checkbox', bool(item['status']))
+        ]
+        notion_task_id = self._notion_db.add_row_to_notion_database(
+            item_id, *data
+        )
+        item['notes'] = notion_task_id
+        item['updated'] = datetime.datetime.utcnow().strftime(
+            self._google_task_list.GOOGLE_TIME_FORMAT
+        )
+        item['status'] = str(item['status'])
+        self._google_task_list.update_task(item_id, item)
+
+    def _add_notion_item_to_google_tasks(self, item_id: str, item: dict):
+        props = item['props']
+        google_task_id = self._google_task_list.add_task({
+            'title': props[config.NOTION_TITLE_PROP_NAME].value,
+            'notes': item_id,
+            'due': None,
+            'status': str(GoogleTaskStatus(props['Checkbox'].value)),
+            'deleted': False,
+        })
+        google_task_id_prop = NotionText(  # TODO change NotionText init
+            self._notion_db.SYNC_LIST_ROW_NAME, {
+                'rich_text': [{
+                    'plain_text': google_task_id
+                }]
+            }
+        )
+        self._notion_db.update_row(
+            item_id, [google_task_id_prop]
         )
 
 
 if __name__ == '__main__':
     notion = NotionDatabase(
+        config.NOTION_TITLE_PROP_NAME,
         config.NOTION_DATABASE_ID,
         config.NOTION_TOKEN,
-        config.NOTION_TITLE_PROP_NAME
     )
     google_tasks = GoogleTaskList(
         config.GOOGLE_TASK_LIST_ID
