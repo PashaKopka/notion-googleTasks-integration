@@ -62,9 +62,9 @@ class NotionTasksSynchronizer:
 
 if __name__ == '__main__':
     notion = NotionDatabase(
-        config.NOTION_TITLE_PROP_NAME,
         config.NOTION_DATABASE_ID,
         config.NOTION_TOKEN,
+        config.NOTION_TITLE_PROP_NAME,
     )
     google_tasks = GoogleTaskList(
         config.GOOGLE_TASK_LIST_ID

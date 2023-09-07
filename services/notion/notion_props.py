@@ -32,6 +32,8 @@ class NotionTitle(AbstractNotionProperty):
             self._value = data
         elif isinstance(data, dict):
             self._value = self._parse_text(data['title'])
+    
+    
 
     def _parse_text(self, text: list) -> str:
         return ''.join([t['plain_text'] for t in text])
@@ -127,6 +129,6 @@ class NotionPropertyFabric:
     }
 
     @staticmethod
-    def create_notion_prop(prop_name: str, prop_data: dict):
+    def create_notion_prop(prop_name: str, prop_data: dict) -> AbstractNotionProperty:
         column_type = prop_data['type']
         return NotionPropertyFabric.NOTION_COLUMNS[column_type](prop_name, prop_data)

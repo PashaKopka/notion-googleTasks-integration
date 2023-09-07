@@ -1,3 +1,6 @@
+import functools
+
+
 def parse_checkbox(prop_name: str, prop_data: dict[str, str]) -> dict[str, str]:
     return {
         'name': prop_name,
@@ -23,6 +26,18 @@ def parse_last_edited_time(prop_name: str, prop_data: dict[str, str]) -> dict[st
 def notion_request_decorator(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
+        if res.status_code != 200:
+            raise Exception(f'Notion request failed: {res.status_code}')
+        return res
+    return wrapper
+
+
+def notion_async_request_decorator(func):
+    async def wrapper(*args, **kwargs):
+        try:
+            res = await func(*args, **kwargs)
+        except Exception as e:
+            print(e)
         if res.status_code != 200:
             raise Exception(f'Notion request failed: {res.status_code}')
         return res
