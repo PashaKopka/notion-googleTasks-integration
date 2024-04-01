@@ -1,134 +1,175 @@
-import datetime
 import os
 import pickle
-
-from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from config import (
-    GOOGLE_CLIENT_SECRET_FILE, GOOGLE_API_NAME,
-    GOOGLE_API_VERSION, GOOGLE_API_SCOPES, GOOGLE_TASK_LIST_ID
-)
-from google_tasks.google_utils import GoogleTaskStatus
+import aiohttp
+import asyncio
+from services.service import AbstractService, Item, AbstractDataAdapter
 
 
-class GoogleTaskList:
-    GOOGLE_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%fZ'
+class GTasksDataAdapter(AbstractDataAdapter):
+    GOOGLE_TASK_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks/{}'
+    
+    def __init__(self, tasks_list_id) -> None:
+        super().__init__()
+        self._tasks_list_id = tasks_list_id
+
+    def dict_to_item(self, data: dict) -> Item:
+        return Item(
+            name=data.get('title', ''),
+            status=self.convert_status_to_bool(data.get('status')),
+            service_1_id='',
+            service_2_id=data.get('id', '')
+        )
+
+    def item_to_dict(self, item: Item) -> dict:
+        return {
+            "kind": "tasks#task",
+            "id": item.service_2_id,
+            # "etag": "",
+            "title": item.name,
+            # "updated": "", # RFC 3339
+            # "selfLink": self._task_url.format(item.service_2_id),
+            # "parent": string,
+            # "position": string,
+            # "notes": string,
+            "status": self.convert_status_to_text(item.status),
+            # "due": string,
+            # "completed": string,
+            # "deleted": False,
+            # "hidden": False,
+            # "links": [
+            #     {
+            #         "type": string,
+            #         "description": string,
+            #         "link": string
+            #     }
+            # ],
+            # "webViewLink": string
+        }
+
+    def dicts_to_items(self, data: list[dict]) -> list[Item]:
+        items = []
+        for item_data in data:
+            items.append(self.dict_to_item(item_data))
+
+        return items
+
+    def items_to_dicts(self, items: dict[Item]) -> list[dict]:
+        pass
+    
+    def convert_status_to_text(self, status: bool) -> str:
+        return 'completed' if status else 'needsAction'
+    
+    def convert_status_to_bool(self, status: str) -> bool:
+        return status == 'completed'
+
+    @property
+    def _task_url(self) -> str:
+        return self.GOOGLE_TASK_URL.format(self._tasks_list_id, '{}')
+
+
+class GTasksList(AbstractService):
+    GOOGLE_TASKS_SCOPES = [
+        'https://www.googleapis.com/auth/tasks']
+
+    GOOGLE_TASKS_GET_ALL_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks'
+    GOOGLE_TASKS_UPDATE_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks/{}'
+    GOOGLE_TASKS_ADD_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks'
 
     def __init__(
         self,
-        task_list_id: str,
-        secret_file_path: str = GOOGLE_CLIENT_SECRET_FILE,
-        api_name: str = GOOGLE_API_NAME,
-        api_version: str = GOOGLE_API_VERSION,
-        scopes: list[str] = GOOGLE_API_SCOPES,
+        credentials_file_path: str,
+        tasks_list_id: str,
     ) -> None:
-        if not os.path.exists(secret_file_path):
-            raise FileNotFoundError(f'File {secret_file_path} not found')
-
-        self._secret_file_path = secret_file_path
-        self._api_name = api_name
-        self._api_version = api_version
-        self._scopes = scopes
-        self._cred = None
-        self._pickle_file = f'token_{self._api_name}_{self._api_version}.pickle'
-        self._list_id = task_list_id
-        self._notion_ids = []
-
+        super().__init__()
+        self._credentials_file_path = credentials_file_path
+        self._tasks_list_id = tasks_list_id
+        self._data_adapter = GTasksDataAdapter(tasks_list_id)
+        
+        self._pickle_file = 'token_tasks_v1.pickle'
+        
+        self._session = aiohttp.ClientSession()
+        self._credentials = None
+        
         self._create_google_connect()
-
-    def _update_notion_ids(func):  # TODO remove this!
-        def wrapper(self, *args, **kwargs):
-            self._notion_ids = self.get_notion_ids()
-            result = func(self, *args, **kwargs)
-            return result
-        return wrapper
-
+        self._headers = {'Authorization': f'Bearer {self._credentials.token}'}
+        
     def _create_google_connect(self) -> None:
-        # TODO finish it
         if os.path.exists(self._pickle_file):
             with open(self._pickle_file, 'rb') as token:
-                self._cred = pickle.load(token)
+                self._credentials = pickle.load(token)
 
-        if not self._cred or not self._cred.valid:
-            if self._cred and self._cred.expired and self._cred.refresh_token:
-                self._cred.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self._secret_file_path, self._scopes
-                )
-                self._cred = flow.run_local_server()
-            print(self._pickle_file)
+        if not self._credentials or not self._credentials.valid:
+            self._flow = InstalledAppFlow.from_client_secrets_file(
+                self._credentials_file_path,
+                self.GOOGLE_TASKS_SCOPES
+            )
+            self._credentials = self._flow.run_local_server(port=0)
             with open(self._pickle_file, 'wb') as token:
-                pickle.dump(self._cred, token)
+                pickle.dump(self._credentials, token)
+        
+    async def get_all_items(self) -> list[Item]:
+        async with self._session.get(self._get_all_tasks_url, headers=self._headers) as response:
+            tasks_data = await response.json()
+            return self._data_adapter.dicts_to_items(tasks_data.get('items', []))
 
-        try:
-            self.connect = build(
-                self._api_name, self._api_version, credentials=self._cred)
-        except Exception as e:
-            print(f'Failed to create service instance for {self._api_name}')
-            os.remove(self._pickle_file)
-            raise e
+    async def get_item_by_id(self, item_id: str) -> Item:
+        url = self._update_task_url.format(item_id)
+        async with self._session.get(url, headers=self._headers) as response:
+            task_data = await response.json()
+            return self._data_adapter.dict_to_item(task_data)
 
-    def get_all_tasks(self, with_completed: bool = True, show_hidden: bool = True):
-        data = self.connect.tasks().list(
-            tasklist=self._list_id,
-            showCompleted=with_completed,
-            showHidden=show_hidden
-        ).execute()['items']
+    async def update_item(self, item_id: str, data: Item) -> str:
+        async with self._session.put(
+            self._update_task_url.format(item_id),
+            headers=self._headers,
+            json=self._data_adapter.item_to_dict(data)
+        ) as response:
+            if response.status == 200:
+                return f"Task {item_id} updated successfully."
+            else:
+                return await response.json()
 
-        res = {}
-        for task in data:
-            res[task['id']] = self._parse_task_data(task)
+    async def add_item(self, data: Item) -> str:
+        async with self._session.post(
+            self._add_task_url,
+            headers=self._headers,
+            json=self._data_adapter.item_to_dict(data)
+        ) as response:
+            if response.status == 200:
+                return "Task added successfully."
+            else:
+                return "Error adding task."
 
-        return res
+    @property
+    def _get_all_tasks_url(self) -> str:
+        return self.GOOGLE_TASKS_GET_ALL_URL.format(self._tasks_list_id)
 
-    def get_task(self, task_id: str):
-        task = self.connect.tasks().get(
-            tasklist=self._list_id,
-            task=task_id
-        ).execute()
-        return self._parse_task_data(task)
+    @property
+    def _update_task_url(self) -> str:
+        return self.GOOGLE_TASKS_UPDATE_URL.format(self._tasks_list_id, '{}')
 
-    def _parse_task_data(self, task: dict) -> dict:
-        return {
-            'id': task['id'],
-            'title': task['title'],
-            'notes': task.get('notes'),
-            'updated': datetime.datetime.strptime(task['updated'], self.GOOGLE_TIME_FORMAT),
-            'status': GoogleTaskStatus(task['status']),
-            'due': datetime.datetime.strptime(task['due'], self.GOOGLE_TIME_FORMAT) if 'due' in task else '',
-        }
+    @property
+    def _add_task_url(self) -> str:
+        return self.GOOGLE_TASKS_ADD_URL.format(self._tasks_list_id)
 
-    def update_task(self, task_id: str, data: dict) -> None:
-        self.connect.tasks().update(
-            tasklist=self._list_id,
-            task=task_id,
-            body=data
-        ).execute()
-
-    def add_task(self, data: dict) -> str:
-        res = self.connect.tasks().insert(
-            tasklist=self._list_id,
-            body=data
-        ).execute()
-        return res['id']
-
-    def __getitem__(self, task_id):
-        return self.get_task(task_id)
-
-    def get_not_synced_tasks(self):
-        tasks = self.get_all_tasks()
-        return {task_id: task for task_id, task in tasks.items() if not task['notes']}
-
-
-if __name__ == '__main__':
-    g_tasks = GoogleTaskList(
-        GOOGLE_TASK_LIST_ID,
-        GOOGLE_CLIENT_SECRET_FILE,
-        GOOGLE_API_NAME,
-        GOOGLE_API_VERSION,
-        GOOGLE_API_SCOPES
+async def main():
+    google_tasks = GTasksList(
+        'token.json',
+        'YTBIeks1amJKQUJLdnVqcg'
     )
-    data = g_tasks.get_tasks()
-    print(data)
+
+    tasks = await google_tasks.get_all_items()
+    print(tasks)
+    t = tasks[0]
+    t.name = 'New name'
+    res = await google_tasks.update_item(t.service_2_id, t)
+    print(res)
+
+    await google_tasks.add_item(Item(name='My new task', status=False, service_1_id='', service_2_id=''))
+
+    new_t = await google_tasks.get_item_by_id(t.service_2_id)
+    print(new_t)
+
+if __name__ == "__main__":
+    asyncio.run(main())
