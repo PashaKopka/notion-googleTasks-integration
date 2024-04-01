@@ -3,6 +3,7 @@ import pickle
 from google_auth_oauthlib.flow import InstalledAppFlow
 import aiohttp
 import asyncio
+from config import GOOGLE_CLIENT_SECRET_FILE, GOOGLE_TASK_LIST_ID
 from services.service import AbstractService, Item, AbstractDataAdapter
 
 
@@ -25,26 +26,8 @@ class GTasksDataAdapter(AbstractDataAdapter):
         return {
             "kind": "tasks#task",
             "id": item.service_2_id,
-            # "etag": "",
             "title": item.name,
-            # "updated": "", # RFC 3339
-            # "selfLink": self._task_url.format(item.service_2_id),
-            # "parent": string,
-            # "position": string,
-            # "notes": string,
             "status": self.convert_status_to_text(item.status),
-            # "due": string,
-            # "completed": string,
-            # "deleted": False,
-            # "hidden": False,
-            # "links": [
-            #     {
-            #         "type": string,
-            #         "description": string,
-            #         "link": string
-            #     }
-            # ],
-            # "webViewLink": string
         }
 
     def dicts_to_items(self, data: list[dict]) -> list[Item]:
@@ -55,7 +38,11 @@ class GTasksDataAdapter(AbstractDataAdapter):
         return items
 
     def items_to_dicts(self, items: dict[Item]) -> list[dict]:
-        pass
+        dicts = []
+        for item in items:
+            dicts.append(self.item_to_dict(item))
+        
+        return dicts
     
     def convert_status_to_text(self, status: bool) -> str:
         return 'completed' if status else 'needsAction'
@@ -155,8 +142,8 @@ class GTasksList(AbstractService):
 
 async def main():
     google_tasks = GTasksList(
-        'token.json',
-        'YTBIeks1amJKQUJLdnVqcg'
+        GOOGLE_CLIENT_SECRET_FILE,
+        GOOGLE_TASK_LIST_ID
     )
 
     tasks = await google_tasks.get_all_items()
@@ -166,7 +153,8 @@ async def main():
     res = await google_tasks.update_item(t.service_2_id, t)
     print(res)
 
-    await google_tasks.add_item(Item(name='My new task', status=False, service_1_id='', service_2_id=''))
+    res = await google_tasks.add_item(Item(name='My new task', status=False, service_1_id='some_id', service_2_id=''))
+    print(res)
 
     new_t = await google_tasks.get_item_by_id(t.service_2_id)
     print(new_t)
