@@ -27,7 +27,7 @@ class NotionDBDataAdapter(AbstractDataAdapter):
     def item_to_dict(self, item: Item) -> dict:
         return {
             "object": "page",
-            "id": item.service_1_id,
+            "id": item.service_1_id or str(uuid.uuid4()),
             "parent": {
                 "type": "database_id",
                 "database_id": self._database_id

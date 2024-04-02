@@ -9,6 +9,18 @@ class Item:
     status: bool
     service_1_id: str
     service_2_id: str
+    # TODO add update datetime field and create datetime field
+    
+    def __eq__(self, other) -> bool:
+        return all([
+            self.name == other.name,
+            self.status == other.status,
+            self.service_1_id == other.service_1_id,
+            self.service_2_id == other.service_2_id
+        ])
+    
+    def __ne__(self, other) -> bool:
+        return not self.__eq__(other)
 
 
 class AbstractDataAdapter(ABC):
