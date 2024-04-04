@@ -72,8 +72,8 @@ class NotionTasksSynchronizer(Synchronizer):
         notion_rows: list[Item],
         google_tasks_list: list[Item]
     ) -> tuple[list[Item]]:
-        new_items_google = filter(lambda x: x.service_1_id == '', google_tasks_list)
-        new_items_notion = filter(lambda x: x.service_2_id == '', notion_rows)
+        new_items_notion = filter(lambda x: x.service_1_id == '', google_tasks_list)
+        new_items_google = filter(lambda x: x.service_2_id == '', notion_rows)
 
         synced_items_google = filter(lambda x: x.service_1_id != '', google_tasks_list)
         synced_items_notion = filter(lambda x: x.service_2_id != '', notion_rows)
@@ -82,16 +82,16 @@ class NotionTasksSynchronizer(Synchronizer):
 
         for item in synced_items_google:
             notion_item = next(
-                filter(notion_rows, lambda x: x.service_2_id == item.service_1_id), None)
+                filter(lambda x: x.service_1_id == item.service_1_id, notion_rows), None)
             if notion_item != item:
                 # TODO check what item was updated later
                 notion_rows_update_list.append(item)
 
         return (
-            new_items_notion,
-            notion_rows_update_list,
             new_items_google,
-            []
+            [],
+            new_items_notion,
+            notion_rows_update_list
         )
 
     async def _update_google_tasks(
@@ -119,11 +119,13 @@ class NotionTasksSynchronizer(Synchronizer):
 
 async def main():
     notion = NotionDB(
+        "234",
         config.NOTION_DATABASE_ID,
         config.NOTION_TOKEN,
         config.NOTION_TITLE_PROP_NAME,
     )
     google_tasks = GTasksList(
+        "234",
         config.GOOGLE_CLIENT_SECRET_FILE,
         config.GOOGLE_TASK_LIST_ID
     )

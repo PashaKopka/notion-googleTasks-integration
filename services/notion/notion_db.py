@@ -2,6 +2,7 @@ import asyncio
 import uuid
 import aiohttp
 from config import NOTION_DATABASE_ID, NOTION_TITLE_PROP_NAME, NOTION_TOKEN
+from models.models import SyncedItem
 from services.service import AbstractService, Item, AbstractDataAdapter
 
 
@@ -21,7 +22,7 @@ class NotionDBDataAdapter(AbstractDataAdapter):
             name=self._get_title(data),
             status=self._get_checkbox_status(data),
             service_1_id=data.get('id', ''),
-            service_2_id=''
+            service_2_id=self._get_sync_id(data.get('id', ''))
         )
 
     def item_to_dict(self, item: Item) -> dict:
@@ -35,14 +36,6 @@ class NotionDBDataAdapter(AbstractDataAdapter):
             "properties": {
                 "Checkbox": {
                     "checkbox": item.status
-                },
-                "sync_list_id": {
-                    "rich_text": [{
-                        'type': 'text',
-                        'text': {
-                            'content': item.service_2_id,
-                        },
-                    }],
                 },
                 "Name": {
                     "title": [
@@ -72,11 +65,8 @@ class NotionDBDataAdapter(AbstractDataAdapter):
         return dicts
 
     def _get_title(self, data: dict) -> str:
-        return data.get(
-            'properties', {}
-        ).get(self._title_prop_name, {}).get(
-            'title', [{}]
-        )[0].get('plain_text', '')
+        title_field = data.get('properties', {}).get(self._title_prop_name, {}).get('title') or [{}]
+        return title_field[0].get('plain_text', '')
 
     def _get_checkbox_status(self, data: dict) -> bool:
         return data.get(
@@ -84,6 +74,12 @@ class NotionDBDataAdapter(AbstractDataAdapter):
         ).get('Checkbox', {}).get(
             'checkbox', False
         )
+
+    def _get_sync_id(self, item_id: str) -> str:
+        item = SyncedItem.get_by_sync_id(service_1_id=item_id)
+        if item:
+            return item.service_2_id
+        return ''
 
 
 class NotionDB(AbstractService):
@@ -93,6 +89,7 @@ class NotionDB(AbstractService):
 
     def __init__(
         self,
+        syncing_service_id: str,
         database_id: str,
         token: str,
         title_prop_name: str
@@ -111,6 +108,7 @@ class NotionDB(AbstractService):
         self._session = aiohttp.ClientSession()
 
         self._data_adapter = NotionDBDataAdapter(title_prop_name, database_id)
+        self._syncing_service_id = syncing_service_id
 
     async def get_all_items(self) -> list[Item]:
         async with aiohttp.ClientSession() as session:
@@ -139,14 +137,24 @@ class NotionDB(AbstractService):
             ) as response:
                 return await response.json()
 
-    async def add_item(self, data: Item) -> str:
+    async def add_item(self, item: Item) -> str:
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 self.CREATE_PAGE_URL,
                 headers=self._headers,
-                json=self._data_adapter.item_to_dict(data)
+                json=self._data_adapter.item_to_dict(item)
             ) as response:
-                return await response.json()
+                data = await response.json()
+                item.service_1_id = data.get('id')
+                self._save_sync_ids(item)
+
+    def _save_sync_ids(self, item: Item) -> None:
+        synced_item = SyncedItem(
+            service_1_id=item.service_1_id,
+            service_2_id=item.service_2_id,
+            syncing_service_id=self._syncing_service_id
+        )
+        synced_item.save()
 
 
 async def main():
@@ -161,7 +169,7 @@ async def main():
     i = items[0]
     i.name = 'New name'
     res = await notion.update_item(i.service_1_id, i)
-    
+
     res = await notion.add_item(
         Item(
             name='My new task',
@@ -170,7 +178,7 @@ async def main():
             service_2_id=''
         )
     )
-    
+
     print(res)
 
 if __name__ == "__main__":

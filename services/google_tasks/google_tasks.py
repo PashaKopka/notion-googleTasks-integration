@@ -5,6 +5,7 @@ import aiohttp
 import asyncio
 from config import GOOGLE_CLIENT_SECRET_FILE, GOOGLE_TASK_LIST_ID
 from services.service import AbstractService, Item, AbstractDataAdapter
+from models.models import SyncedItem, get_db
 
 
 class GTasksDataAdapter(AbstractDataAdapter):
@@ -18,7 +19,7 @@ class GTasksDataAdapter(AbstractDataAdapter):
         return Item(
             name=data.get('title', ''),
             status=self.convert_status_to_bool(data.get('status')),
-            service_1_id='',
+            service_1_id=self._get_sync_id(data.get('id', '')),
             service_2_id=data.get('id', '')
         )
 
@@ -49,6 +50,12 @@ class GTasksDataAdapter(AbstractDataAdapter):
     
     def convert_status_to_bool(self, status: str) -> bool:
         return status == 'completed'
+    
+    def _get_sync_id(self, item_id: str) -> str:
+        item = SyncedItem.get_by_sync_id(service_2_id=item_id)
+        if item:
+            return item.service_1_id
+        return ''
 
     @property
     def _task_url(self) -> str:
@@ -65,6 +72,7 @@ class GTasksList(AbstractService):
 
     def __init__(
         self,
+        syncing_service_id: str,
         credentials_file_path: str,
         tasks_list_id: str,
     ) -> None:
@@ -72,6 +80,7 @@ class GTasksList(AbstractService):
         self._credentials_file_path = credentials_file_path
         self._tasks_list_id = tasks_list_id
         self._data_adapter = GTasksDataAdapter(tasks_list_id)
+        self._syncing_service_id = syncing_service_id
         
         self._pickle_file = 'token_tasks_v1.pickle'
         
@@ -117,16 +126,23 @@ class GTasksList(AbstractService):
             else:
                 return await response.json()
 
-    async def add_item(self, data: Item) -> str:
+    async def add_item(self, item: Item) -> str:
         async with self._session.post(
             self._add_task_url,
             headers=self._headers,
-            json=self._data_adapter.item_to_dict(data)
+            json=self._data_adapter.item_to_dict(item)
         ) as response:
-            if response.status == 200:
-                return "Task added successfully."
-            else:
-                return "Error adding task."
+            data = await response.json()
+            item.service_2_id = data.get('id')
+            self._save_sync_ids(item)
+    
+    def _save_sync_ids(self, item: Item) -> None:
+        synced_item = SyncedItem(
+            service_1_id=item.service_1_id,
+            service_2_id=item.service_2_id,
+            syncing_service_id=self._syncing_service_id
+        )
+        synced_item.save()
 
     @property
     def _get_all_tasks_url(self) -> str:
@@ -142,8 +158,9 @@ class GTasksList(AbstractService):
 
 async def main():
     google_tasks = GTasksList(
-        GOOGLE_CLIENT_SECRET_FILE,
-        GOOGLE_TASK_LIST_ID
+        user_id='234',
+        credentials_file_path=GOOGLE_CLIENT_SECRET_FILE,
+        tasks_list_id=GOOGLE_TASK_LIST_ID
     )
 
     tasks = await google_tasks.get_all_items()

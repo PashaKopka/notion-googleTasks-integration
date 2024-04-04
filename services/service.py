@@ -10,8 +10,11 @@ class Item:
     service_1_id: str
     service_2_id: str
     # TODO add update datetime field and create datetime field
+    # TODO think about service_1 and service_2 names. This is bad naming.
     
     def __eq__(self, other) -> bool:
+        if not isinstance(other, Item):
+            return False
         return all([
             self.name == other.name,
             self.status == other.status,
@@ -25,16 +28,24 @@ class Item:
 
 class AbstractDataAdapter(ABC):
     
+    @abstractmethod
     def dict_to_item(self, data: dict) -> Item:
         raise NotImplementedError
     
+    @abstractmethod
     def item_to_dict(self, item: Item) -> dict:
         raise NotImplementedError
     
+    @abstractmethod
     def dicts_to_items(self, data: list[dict]) -> list[Item]:
         raise NotImplementedError
     
+    @abstractmethod
     def items_to_dicts(self, items: dict[Item]) -> list[dict]:
+        raise NotImplementedError
+    
+    @abstractmethod
+    def _get_sync_id(self, item_id: str) -> str:
         raise NotImplementedError
 
 
@@ -56,4 +67,8 @@ class AbstractService(ABC):
     @abstractmethod
     def add_item(self, data: Item) -> str:
         """Add item to service. Return id."""
+        raise NotImplementedError
+    
+    @abstractmethod
+    def _save_sync_ids(self, item: Item) -> None:
         raise NotImplementedError
