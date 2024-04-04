@@ -1,3 +1,4 @@
+import datetime
 import os
 import pickle
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -20,7 +21,8 @@ class GTasksDataAdapter(AbstractDataAdapter):
             name=data.get('title', ''),
             status=self.convert_status_to_bool(data.get('status')),
             service_1_id=self._get_sync_id(data.get('id', '')),
-            service_2_id=data.get('id', '')
+            service_2_id=data.get('id', ''),
+            updated_at=self._get_updated_at(data.get('updated', ''))
         )
 
     def item_to_dict(self, item: Item) -> dict:
@@ -56,6 +58,9 @@ class GTasksDataAdapter(AbstractDataAdapter):
         if item:
             return item.service_1_id
         return ''
+    
+    def _get_updated_at(self, updated: str) -> datetime:
+        return datetime.datetime.fromisoformat(updated)
 
     @property
     def _task_url(self) -> str:
@@ -158,7 +163,7 @@ class GTasksList(AbstractService):
 
 async def main():
     google_tasks = GTasksList(
-        user_id='234',
+        syncing_service_id='234',
         credentials_file_path=GOOGLE_CLIENT_SECRET_FILE,
         tasks_list_id=GOOGLE_TASK_LIST_ID
     )

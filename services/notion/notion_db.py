@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import uuid
 import aiohttp
 from config import NOTION_DATABASE_ID, NOTION_TITLE_PROP_NAME, NOTION_TOKEN
@@ -22,7 +23,8 @@ class NotionDBDataAdapter(AbstractDataAdapter):
             name=self._get_title(data),
             status=self._get_checkbox_status(data),
             service_1_id=data.get('id', ''),
-            service_2_id=self._get_sync_id(data.get('id', ''))
+            service_2_id=self._get_sync_id(data.get('id', '')),
+            updated_at=self._get_updated_at(data.get('last_edited_time', ''))
         )
 
     def item_to_dict(self, item: Item) -> dict:
@@ -80,6 +82,9 @@ class NotionDBDataAdapter(AbstractDataAdapter):
         if item:
             return item.service_2_id
         return ''
+    
+    def _get_updated_at(self, updated: str) -> datetime:
+        return datetime.datetime.fromisoformat(updated)
 
 
 class NotionDB(AbstractService):
@@ -159,6 +164,7 @@ class NotionDB(AbstractService):
 
 async def main():
     notion = NotionDB(
+        "234",
         NOTION_DATABASE_ID,
         NOTION_TOKEN,
         NOTION_TITLE_PROP_NAME

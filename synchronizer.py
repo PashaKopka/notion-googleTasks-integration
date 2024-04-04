@@ -79,17 +79,23 @@ class NotionTasksSynchronizer(Synchronizer):
         synced_items_notion = filter(lambda x: x.service_2_id != '', notion_rows)
 
         notion_rows_update_list = []
+        google_tasks_update_list = []
 
         for item in synced_items_google:
             notion_item = next(
                 filter(lambda x: x.service_1_id == item.service_1_id, notion_rows), None)
             if notion_item != item:
-                # TODO check what item was updated later
-                notion_rows_update_list.append(item)
+                # compare them by update time
+                if notion_item.updated_at < item.updated_at:
+                    # google task is newer
+                    notion_rows_update_list.append(item)
+                else:
+                    # notion row is newer
+                    google_tasks_update_list.append(notion_item)
 
         return (
             new_items_google,
-            [],
+            google_tasks_update_list,
             new_items_notion,
             notion_rows_update_list
         )

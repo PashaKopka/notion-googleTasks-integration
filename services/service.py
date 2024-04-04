@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import datetime
 from typing import Union
 
 
@@ -9,7 +10,7 @@ class Item:
     status: bool
     service_1_id: str
     service_2_id: str
-    # TODO add update datetime field and create datetime field
+    updated_at: datetime
     # TODO think about service_1 and service_2 names. This is bad naming.
     
     def __eq__(self, other) -> bool:
