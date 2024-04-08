@@ -76,7 +76,6 @@ class NotionTasksSynchronizer(Synchronizer):
         new_items_google = filter(lambda x: x.service_2_id == '', notion_rows)
 
         synced_items_google = filter(lambda x: x.service_1_id != '', google_tasks_list)
-        synced_items_notion = filter(lambda x: x.service_2_id != '', notion_rows)
 
         notion_rows_update_list = []
         google_tasks_update_list = []

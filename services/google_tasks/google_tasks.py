@@ -71,7 +71,7 @@ class GTasksList(AbstractService):
     GOOGLE_TASKS_SCOPES = [
         'https://www.googleapis.com/auth/tasks']
 
-    GOOGLE_TASKS_GET_ALL_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks'
+    GOOGLE_TASKS_GET_ALL_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks?showCompleted=true&showHidden=true'
     GOOGLE_TASKS_UPDATE_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks/{}'
     GOOGLE_TASKS_ADD_URL = 'https://www.googleapis.com/tasks/v1/lists/{}/tasks'
 
