@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
 from typing import Union
 
@@ -8,23 +8,11 @@ from typing import Union
 class Item:
     name: str
     status: bool
-    service_1_id: str
-    service_2_id: str
-    updated_at: datetime
-    # TODO think about service_1 and service_2 names. This is bad naming.
+    updated_at: datetime = field(compare=False)
     
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, Item):
-            return False
-        return all([
-            self.name == other.name,
-            self.status == other.status,
-            self.service_1_id == other.service_1_id,
-            self.service_2_id == other.service_2_id
-        ])
-    
-    def __ne__(self, other) -> bool:
-        return not self.__eq__(other)
+    # services
+    notion_id: str = field(default='', compare=False)
+    google_task_id: str = field(default='', compare=False)
 
 
 class AbstractDataAdapter(ABC):
@@ -44,10 +32,6 @@ class AbstractDataAdapter(ABC):
     @abstractmethod
     def items_to_dicts(self, items: dict[Item]) -> list[dict]:
         raise NotImplementedError
-    
-    @abstractmethod
-    def _get_sync_id(self, item_id: str) -> str:
-        raise NotImplementedError
 
 
 class AbstractService(ABC):
@@ -61,7 +45,7 @@ class AbstractService(ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def update_item(self, item_id: str, data: Item) -> str:
+    def update_item(self, item: Item) -> str:
         """Update item in service by id. Return id."""
         raise NotImplementedError
     

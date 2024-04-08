@@ -4,6 +4,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from databases import Database
 
 from config import SQLALCHEMY_DATABASE_URL
+from services.service import Item
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -49,27 +50,35 @@ class SyncedItem(BaseModel):
     __tablename__ = "synced_item"
 
     id = Column(String, primary_key=True, index=True)
-    service_1_id = Column(String)
-    service_2_id = Column(String)
+    notion_id = Column(String)
+    google_task_id = Column(String)
 
     syncing_service_id = Column(String, ForeignKey("syncing_services.id"))
     syncing_service = relationship("SyncingServices")
 
-    @staticmethod
-    def get_by_sync_id(service_1_id: str = None, service_2_id: str = None):
-        if not service_1_id and not service_2_id:
-            return None
+    @classmethod
+    def get_by_sync_id(cls, **kwargs):
+        if not kwargs:
+            raise ValueError("At least one argument is required")
 
-        filters = []
-        if service_1_id:
-            filters.append(SyncedItem.service_1_id == service_1_id)
-        if service_2_id:
-            filters.append(SyncedItem.service_2_id == service_2_id)
+        filters = [cls.get_column_by_name(key) == value for key, value in kwargs.items()]
 
         db = SessionLocal()
         item = db.query(SyncedItem).filter(*filters).first()
         db.close()
         return item
+    
+    @classmethod
+    def get_column_by_name(cls, column_name: str):
+        return SyncedItem.__table__.columns[column_name]
+    
+    @classmethod
+    def create_from_item(cls, item: Item, syncing_service_id: str) -> "SyncedItem":
+        return cls(
+            notion_id=item.notion_id,
+            google_task_id=item.google_task_id,
+            syncing_service_id=syncing_service_id
+        )
 
 
 User.syncing_services = relationship("SyncingServices", back_populates="user")

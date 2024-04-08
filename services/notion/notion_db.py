@@ -22,15 +22,14 @@ class NotionDBDataAdapter(AbstractDataAdapter):
         return Item(
             name=self._get_title(data),
             status=self._get_checkbox_status(data),
-            service_1_id=data.get('id', ''),
-            service_2_id=self._get_sync_id(data.get('id', '')),
+            notion_id=data.get('id', ''),
             updated_at=self._get_updated_at(data.get('last_edited_time', ''))
         )
 
     def item_to_dict(self, item: Item) -> dict:
         return {
             "object": "page",
-            "id": item.service_1_id or str(uuid.uuid4()),
+            "id": item.notion_id or str(uuid.uuid4()),
             "parent": {
                 "type": "database_id",
                 "database_id": self._database_id
@@ -76,12 +75,6 @@ class NotionDBDataAdapter(AbstractDataAdapter):
         ).get('Checkbox', {}).get(
             'checkbox', False
         )
-
-    def _get_sync_id(self, item_id: str) -> str:
-        item = SyncedItem.get_by_sync_id(service_1_id=item_id)
-        if item:
-            return item.service_2_id
-        return ''
     
     def _get_updated_at(self, updated: str) -> datetime:
         return datetime.datetime.fromisoformat(updated)
@@ -133,12 +126,12 @@ class NotionDB(AbstractService):
                 data = await response.json()
                 return self._data_adapter.dict_to_item(data)
 
-    async def update_item(self, item_id: str, data: Item) -> str:
+    async def update_item(self, item: Item) -> str:
         async with aiohttp.ClientSession() as session:
             async with session.patch(
-                self.PAGE_URL_FORMAT.format(item_id),
+                self.PAGE_URL_FORMAT.format(item.notion_id),
                 headers=self._headers,
-                json=self._data_adapter.item_to_dict(data)
+                json=self._data_adapter.item_to_dict(item)
             ) as response:
                 return await response.json()
 
@@ -150,15 +143,11 @@ class NotionDB(AbstractService):
                 json=self._data_adapter.item_to_dict(item)
             ) as response:
                 data = await response.json()
-                item.service_1_id = data.get('id')
+                item.notion_id = data.get('id')
                 self._save_sync_ids(item)
 
     def _save_sync_ids(self, item: Item) -> None:
-        synced_item = SyncedItem(
-            service_1_id=item.service_1_id,
-            service_2_id=item.service_2_id,
-            syncing_service_id=self._syncing_service_id
-        )
+        synced_item = SyncedItem.create_from_item(item, self._syncing_service_id)
         synced_item.save()
 
 
@@ -174,14 +163,14 @@ async def main():
     # print(items)
     i = items[0]
     i.name = 'New name'
-    res = await notion.update_item(i.service_1_id, i)
+    res = await notion.update_item(i)
 
     res = await notion.add_item(
         Item(
             name='My new task',
             status=False,
-            service_1_id=str(uuid.uuid4()),
-            service_2_id=''
+            notion_id=str(uuid.uuid4()),
+            google_task_id=''
         )
     )
 
