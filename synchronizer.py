@@ -32,9 +32,7 @@ class Synchronizer(ABC):
 class NotionTasksSynchronizer(Synchronizer):
 
     def __init__(
-        self,
-        notion_service: NotionDB,
-        google_tasks_service: GTasksList
+        self, notion_service: NotionDB, google_tasks_service: GTasksList
     ) -> None:
         super().__init__()
 
@@ -50,17 +48,15 @@ class NotionTasksSynchronizer(Synchronizer):
             google_tasks_add_list,
             google_tasks_update_list,
             notion_rows_add_list,
-            notion_rows_update_list
+            notion_rows_update_list,
         ) = self._compare(notion_rows, google_tasks_list)
 
-        asyncio.create_task(self._update_google_tasks(
-            google_tasks_add_list,
-            google_tasks_update_list
-        ))
-        asyncio.create_task(self._update_notion_rows(
-            notion_rows_add_list,
-            notion_rows_update_list
-        ))
+        asyncio.create_task(
+            self._update_google_tasks(google_tasks_add_list, google_tasks_update_list)
+        )
+        asyncio.create_task(
+            self._update_notion_rows(notion_rows_add_list, notion_rows_update_list)
+        )
 
     async def _get_notion_rows(self) -> list[Item]:
         items = await self._notion_db.get_all_items()
@@ -68,7 +64,7 @@ class NotionTasksSynchronizer(Synchronizer):
             synced_item = SyncedItem.get_by_sync_id(notion_id=item.notion_id)
             if synced_item:
                 item.google_task_id = synced_item.google_task_id
-        
+
         return items
 
     async def _get_google_tasks_list(self) -> list[Item]:
@@ -77,25 +73,24 @@ class NotionTasksSynchronizer(Synchronizer):
             synced_item = SyncedItem.get_by_sync_id(google_task_id=item.google_task_id)
             if synced_item:
                 item.notion_id = synced_item.notion_id
-        
+
         return items
 
     def _compare(
-        self,
-        notion_rows: list[Item],
-        google_tasks_list: list[Item]
+        self, notion_rows: list[Item], google_tasks_list: list[Item]
     ) -> tuple[list[Item]]:
-        new_items_notion = filter(lambda x: x.notion_id == '', google_tasks_list)
-        new_items_google = filter(lambda x: x.google_task_id == '', notion_rows)
+        new_items_notion = filter(lambda x: x.notion_id == "", google_tasks_list)
+        new_items_google = filter(lambda x: x.google_task_id == "", notion_rows)
 
-        synced_items_google = filter(lambda x: x.notion_id != '', google_tasks_list)
+        synced_items_google = filter(lambda x: x.notion_id != "", google_tasks_list)
 
         notion_rows_update_list = []
         google_tasks_update_list = []
 
         for item in synced_items_google:
             notion_item = next(
-                filter(lambda x: x.notion_id == item.notion_id, notion_rows), None)
+                filter(lambda x: x.notion_id == item.notion_id, notion_rows), None
+            )
             if notion_item != item:
                 # compare them by update time
                 if notion_item.updated_at < item.updated_at:
@@ -109,13 +104,11 @@ class NotionTasksSynchronizer(Synchronizer):
             new_items_google,
             google_tasks_update_list,
             new_items_notion,
-            notion_rows_update_list
+            notion_rows_update_list,
         )
 
     async def _update_google_tasks(
-        self,
-        google_tasks_add_list: list[Item],
-        google_tasks_update_list: list[Item]
+        self, google_tasks_add_list: list[Item], google_tasks_update_list: list[Item]
     ):
         for item in google_tasks_add_list:
             asyncio.create_task(self._google_task_list.add_item(item))
@@ -124,9 +117,7 @@ class NotionTasksSynchronizer(Synchronizer):
             asyncio.create_task(self._google_task_list.update_item(item))
 
     async def _update_notion_rows(
-        self,
-        notion_rows_add_list: list[Item],
-        notion_rows_update_list: list[Item]
+        self, notion_rows_add_list: list[Item], notion_rows_update_list: list[Item]
     ):
         for item in notion_rows_add_list:
             asyncio.create_task(self._notion_db.add_item(item))
@@ -145,16 +136,16 @@ async def main():
     google_tasks = GTasksList(
         "234",
         config.GOOGLE_CLIENT_SECRET_FILE,
-        config.GOOGLE_TASK_LIST_ID
+        config.GOOGLE_TASK_LIST_ID,
     )
     syncer = NotionTasksSynchronizer(
         notion_service=notion,
-        google_tasks_service=google_tasks
+        google_tasks_service=google_tasks,
     )
     while True:
         await syncer.sync()
         await asyncio.sleep(20)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

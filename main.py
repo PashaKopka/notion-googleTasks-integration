@@ -18,7 +18,6 @@ class User(BaseModel):
 
 class SyncingServices(BaseModel):
     user_id: UUID
-    # Use uuid4 to generate default UUID
     id: UUID = Field(default_factory=uuid4)
     service_1_data: Dict
     service_2_data: Dict
@@ -27,8 +26,25 @@ class SyncingServices(BaseModel):
 class SyncingIds(BaseModel):
     user_id: UUID
     syncing_service_id: UUID
-    service_1_id: Optional[str]
-    service_2_id: Optional[str]
+    notion_id: Optional[str]
+    google_task_id: Optional[str]
+
+
+@app.post("/signup/", response_model=User)
+def signup(user: User, db: Session = Depends(get_db)):
+    pass
+
+
+@app.post("/login/", response_model=User)
+def login(user: User, db: Session = Depends(get_db)):
+    pass
+
+
+@app.post("/sync_services/", response_model=SyncingServices)
+def create_sync_services(
+    syncing_services: SyncingServices, db: Session = Depends(get_db)
+):
+    pass
 
 
 @app.post("/users/", response_model=User)
@@ -39,4 +55,5 @@ def create_user(user: User, db: Session = Depends(get_db)):
 if __name__ == "__main__":
     create_tables()
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

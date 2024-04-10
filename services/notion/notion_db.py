@@ -22,22 +22,17 @@ class NotionDBDataAdapter(AbstractDataAdapter):
         return Item(
             name=self._get_title(data),
             status=self._get_checkbox_status(data),
-            notion_id=data.get('id', ''),
-            updated_at=self._get_updated_at(data.get('last_edited_time', ''))
+            notion_id=data.get("id", ""),
+            updated_at=self._get_updated_at(data.get("last_edited_time", "")),
         )
 
     def item_to_dict(self, item: Item) -> dict:
         return {
             "object": "page",
             "id": item.notion_id or str(uuid.uuid4()),
-            "parent": {
-                "type": "database_id",
-                "database_id": self._database_id
-            },
+            "parent": {"type": "database_id", "database_id": self._database_id},
             "properties": {
-                "Checkbox": {
-                    "checkbox": item.status
-                },
+                "Checkbox": {"checkbox": item.status},
                 "Name": {
                     "title": [
                         {
@@ -47,7 +42,7 @@ class NotionDBDataAdapter(AbstractDataAdapter):
                             "plain_text": item.name,
                         }
                     ]
-                }
+                },
             },
         }
 
@@ -66,40 +61,38 @@ class NotionDBDataAdapter(AbstractDataAdapter):
         return dicts
 
     def _get_title(self, data: dict) -> str:
-        title_field = data.get('properties', {}).get(self._title_prop_name, {}).get('title') or [{}]
-        return title_field[0].get('plain_text', '')
+        title_field = data.get("properties", {}).get(self._title_prop_name, {}).get(
+            "title"
+        ) or [{}]
+        return title_field[0].get("plain_text", "")
 
     def _get_checkbox_status(self, data: dict) -> bool:
-        return data.get(
-            'properties', {}
-        ).get('Checkbox', {}).get(
-            'checkbox', False
-        )
-    
+        return data.get("properties", {}).get("Checkbox", {}).get("checkbox", False)
+
     def _get_updated_at(self, updated: str) -> datetime:
         return datetime.datetime.fromisoformat(updated)
 
 
 class NotionDB(AbstractService):
-    DATABASE_URL_FORMAT = 'https://api.notion.com/v1/databases/{}/query'
-    CREATE_PAGE_URL = 'https://api.notion.com/v1/pages'
-    PAGE_URL_FORMAT = 'https://api.notion.com/v1/pages/{}'
+    DATABASE_URL_FORMAT = "https://api.notion.com/v1/databases/{}/query"
+    CREATE_PAGE_URL = "https://api.notion.com/v1/pages"
+    PAGE_URL_FORMAT = "https://api.notion.com/v1/pages/{}"
 
     def __init__(
         self,
         syncing_service_id: str,
         database_id: str,
         token: str,
-        title_prop_name: str
+        title_prop_name: str,
     ) -> None:
         super().__init__()
 
         self._database_id = database_id
         self._token = token
         self._headers = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json',
-            'Notion-Version': '2022-02-22'
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-02-22",
         }
         self._database_url = self.DATABASE_URL_FORMAT.format(database_id)
         self._title_prop_name = title_prop_name
@@ -111,17 +104,15 @@ class NotionDB(AbstractService):
     async def get_all_items(self) -> list[Item]:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                self._database_url,
-                headers=self._headers
+                self._database_url, headers=self._headers
             ) as response:
                 data = await response.json()
-                return self._data_adapter.dicts_to_items(data.get('results'))
+                return self._data_adapter.dicts_to_items(data.get("results"))
 
     async def get_item_by_id(self, item_id: str) -> Item:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                self.PAGE_URL_FORMAT.format(item_id),
-                headers=self._headers
+                self.PAGE_URL_FORMAT.format(item_id), headers=self._headers
             ) as response:
                 data = await response.json()
                 return self._data_adapter.dict_to_item(data)
@@ -131,7 +122,7 @@ class NotionDB(AbstractService):
             async with session.patch(
                 self.PAGE_URL_FORMAT.format(item.notion_id),
                 headers=self._headers,
-                json=self._data_adapter.item_to_dict(item)
+                json=self._data_adapter.item_to_dict(item),
             ) as response:
                 return await response.json()
 
@@ -140,10 +131,10 @@ class NotionDB(AbstractService):
             async with session.post(
                 self.CREATE_PAGE_URL,
                 headers=self._headers,
-                json=self._data_adapter.item_to_dict(item)
+                json=self._data_adapter.item_to_dict(item),
             ) as response:
                 data = await response.json()
-                item.notion_id = data.get('id')
+                item.notion_id = data.get("id")
                 self._save_sync_ids(item)
 
     def _save_sync_ids(self, item: Item) -> None:
@@ -152,29 +143,25 @@ class NotionDB(AbstractService):
 
 
 async def main():
-    notion = NotionDB(
-        "234",
-        NOTION_DATABASE_ID,
-        NOTION_TOKEN,
-        NOTION_TITLE_PROP_NAME
-    )
+    notion = NotionDB("234", NOTION_DATABASE_ID, NOTION_TOKEN, NOTION_TITLE_PROP_NAME)
 
     items = await notion.get_all_items()
     # print(items)
     i = items[0]
-    i.name = 'New name'
+    i.name = "New name"
     res = await notion.update_item(i)
 
     res = await notion.add_item(
         Item(
-            name='My new task',
+            name="My new task",
             status=False,
             notion_id=str(uuid.uuid4()),
-            google_task_id=''
+            google_task_id="",
         )
     )
 
     print(res)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

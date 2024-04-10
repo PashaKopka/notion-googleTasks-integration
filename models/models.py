@@ -61,23 +61,25 @@ class SyncedItem(BaseModel):
         if not kwargs:
             raise ValueError("At least one argument is required")
 
-        filters = [cls.get_column_by_name(key) == value for key, value in kwargs.items()]
+        filters = [
+            cls.get_column_by_name(key) == value for key, value in kwargs.items()
+        ]
 
         db = SessionLocal()
         item = db.query(SyncedItem).filter(*filters).first()
         db.close()
         return item
-    
+
     @classmethod
     def get_column_by_name(cls, column_name: str):
         return SyncedItem.__table__.columns[column_name]
-    
+
     @classmethod
     def create_from_item(cls, item: Item, syncing_service_id: str) -> "SyncedItem":
         return cls(
             notion_id=item.notion_id,
             google_task_id=item.google_task_id,
-            syncing_service_id=syncing_service_id
+            syncing_service_id=syncing_service_id,
         )
 
 
