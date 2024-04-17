@@ -40,8 +40,8 @@ class SyncingServices(BaseModel):
 
     id = Column(String, primary_key=True, index=True)
     user_id = Column(String, ForeignKey("users.id"))
-    service_1_data = Column(JSON)
-    service_2_data = Column(JSON)
+    service_notion_data = Column(JSON, nullable=True)
+    service_google_tasks_data = Column(JSON, nullable=True)
 
     user = relationship("User", back_populates="syncing_services")
 

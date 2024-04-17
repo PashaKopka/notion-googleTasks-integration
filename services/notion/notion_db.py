@@ -143,7 +143,12 @@ class NotionDB(AbstractService):
 
 
 async def main():
-    notion = NotionDB("234", NOTION_DATABASE_ID, NOTION_TOKEN, NOTION_TITLE_PROP_NAME)
+    notion = NotionDB(
+        "57986fc8-3954-4623-a220-765bd5bf16c9",
+        NOTION_DATABASE_ID,
+        NOTION_TOKEN,
+        NOTION_TITLE_PROP_NAME,
+    )
 
     items = await notion.get_all_items()
     # print(items)
@@ -157,6 +162,7 @@ async def main():
             status=False,
             notion_id=str(uuid.uuid4()),
             google_task_id="",
+            updated_at=datetime.datetime.now(),
         )
     )
 
