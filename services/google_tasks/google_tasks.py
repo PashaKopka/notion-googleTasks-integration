@@ -1,12 +1,14 @@
+import asyncio
 import datetime
 import os
 import pickle
-from google_auth_oauthlib.flow import InstalledAppFlow
+
 import aiohttp
-import asyncio
+from google_auth_oauthlib.flow import InstalledAppFlow
+
 from config import GOOGLE_CLIENT_SECRET_FILE, GOOGLE_TASK_LIST_ID
-from services.service import AbstractService, Item, AbstractDataAdapter
 from models.models import SyncedItem, get_db
+from services.service import AbstractDataAdapter, AbstractService, Item
 
 
 class GTasksDataAdapter(AbstractDataAdapter):

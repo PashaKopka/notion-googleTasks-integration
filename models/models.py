@@ -1,7 +1,8 @@
 from uuid import uuid4
-from sqlalchemy import create_engine, Column, String, JSON, ForeignKey
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+
 from databases import Database
+from sqlalchemy import JSON, Column, ForeignKey, String, create_engine
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 from config import SQLALCHEMY_DATABASE_URL
 from services.service import Item
@@ -33,6 +34,20 @@ class User(BaseModel):
     id = Column(String, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     password = Column(String)
+
+    @classmethod
+    def get_by_id(cls, id_: str) -> "User":
+        db = SessionLocal()
+        user = db.query(User).filter(User.id == id_).first()
+        db.close()
+        return user
+
+    @classmethod
+    def get_by_email(cls, email: str) -> "User":
+        db = SessionLocal()
+        user = db.query(User).filter(User.email == email).first()
+        db.close()
+        return user
 
 
 class SyncingServices(BaseModel):

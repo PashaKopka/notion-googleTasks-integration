@@ -6,3 +6,5 @@ __pycache__
 *.pickle
 venv/
 venv*/
+alembic.ini
+alembic/
