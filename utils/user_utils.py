@@ -47,7 +47,7 @@ def get_user_by_session_state(session: defaultdict):
 
 def set_user_by_session_state(session: defaultdict):
     def set_user_to_session(user: User):
-        state = str(hash(user.email))
+        state = str(user.id)
         session["state"][state] = {"user_id": user.id}
         return state
 

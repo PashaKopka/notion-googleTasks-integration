@@ -60,6 +60,23 @@ class SyncingServices(BaseModel):
 
     user = relationship("User", back_populates="syncing_services")
 
+    def save(self):
+        db = SessionLocal()
+        # if service already exists we update it
+        service = db.query(SyncingServices).filter(SyncingServices.user_id == self.user_id).first()
+        if service:
+            # We update
+            if not service.service_google_tasks_data:
+                service.service_google_tasks_data = self.service_google_tasks_data
+            if not service.service_notion_data:
+                service.service_notion_data = self.service_notion_data
+
+            db.close()
+            return super(SyncingServices, service).save()
+
+        db.close()
+        return super().save()
+
 
 class SyncedItem(BaseModel):
     __tablename__ = "synced_item"

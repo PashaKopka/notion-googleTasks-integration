@@ -1,4 +1,5 @@
 from collections import defaultdict
+import json
 
 import google_auth_oauthlib
 import requests
@@ -51,6 +52,10 @@ def get_notion_data(code: str):
         },
     )
     return response.json()
+
+
+def get_google_task_data(credentials):
+    return json.loads(credentials.to_json())
 
 
 def absolute_url_for(url_name: str, base_url: str = HOST):
@@ -115,7 +120,7 @@ async def save_google_connection(
     flow.redirect_uri = str(redirect_path.make_absolute_url(base_url=HOST))
     authorization_response = "https://" + str(request.url)[7:]
     flow.fetch_token(authorization_response=authorization_response)
-    credentials = flow.credentials.to_json()
+    credentials = get_google_task_data(flow.credentials)
 
     services = SyncingServices(
         user_id=user.id,
