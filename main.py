@@ -1,14 +1,16 @@
-from collections import defaultdict
 import json
+from collections import defaultdict
 
 import google_auth_oauthlib
 import requests
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 
 from config import (
+    FRONT_END_HOST,
     GOOGLE_API_SCOPES,
     GOOGLE_CLIENT_SECRET_FILE,
     HOST,
@@ -28,12 +30,28 @@ from utils.user_utils import (
 
 app = FastAPI()
 
+origins = [
+    "http://localhost",
+    FRONT_END_HOST,
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 templates = Jinja2Templates(directory="templates")
 
 SESSION = defaultdict(dict)
 
 get_user_from_session = get_user_by_session_state(SESSION)
 set_user_to_session = set_user_by_session_state(SESSION)
+
+redirect_to_home = RedirectResponse(FRONT_END_HOST)
 
 
 def get_notion_data(code: str):
@@ -63,22 +81,11 @@ def absolute_url_for(url_name: str, base_url: str = HOST):
     return redirect_path.make_absolute_url(base_url=base_url)
 
 
-@app.get("/")
-async def root(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={
-            "request": request,
-            "notion_connect_url": app.url_path_for("connect_notion"),
-        },
-    )
-
-
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = get_user(email=form_data.username)
     if not user or form_data.password != user.password:
+        # TODO change to hashed password
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     access_token = generate_access_token(user)
     return {"access_token": access_token, "token_type": "bearer"}
@@ -94,15 +101,13 @@ async def save_notion_connection(
         service_notion_data=notion_data,
     )
     services.save()
-    return RedirectResponse(app.url_path_for("root"))
+    return redirect_to_home
 
 
 @app.get("/notion/connect")
 def connect_notion(user: User = Depends(validate_token)):
     state = set_user_to_session(user)
-    return RedirectResponse(
-        f"{NOTION_AUTHORIZATION_URL}&state={state}"
-    )  # TODO change to app.url_path_for
+    return {f"{NOTION_AUTHORIZATION_URL}&state={state}"}
 
 
 @app.get("/google_tasks/")
@@ -127,7 +132,7 @@ async def save_google_connection(
         service_google_tasks_data=credentials,
     )
     services.save()
-    return RedirectResponse(app.url_path_for("root"))
+    return redirect_to_home
 
 
 @app.get("/google_tasks/connect")
@@ -143,7 +148,7 @@ async def connect_google_tasks(user: User = Depends(validate_token)):
         access_type="offline",
         include_granted_scopes="true",
     )
-    return RedirectResponse(authorization_url)
+    return {authorization_url}
 
 
 if __name__ == "__main__":
