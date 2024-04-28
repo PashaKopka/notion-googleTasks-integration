@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections import defaultdict
 
@@ -20,6 +21,9 @@ from config import (
     NOTION_TOKEN_URL,
 )
 from models.models import SyncingServices, create_tables
+from services.google_tasks.google_tasks import GTasksList
+from services.notion.notion_db import NotionDB
+from synchronizer import NotionTasksSynchronizer
 from utils.request_crypt import encode, generate_access_token, validate_token
 from utils.user_utils import (
     User,
@@ -79,6 +83,46 @@ def get_google_task_data(credentials):
 def absolute_url_for(url_name: str, base_url: str = HOST):
     redirect_path = app.url_path_for(url_name)
     return redirect_path.make_absolute_url(base_url=base_url)
+
+
+async def start_sync_notion_google_tasks(
+    syncing_service_id: str, notion_data: dict, google_data: dict
+):
+    notion_db = NotionDB(
+        syncing_service_id=syncing_service_id,
+        database_id=notion_data["duplicated_template_id"],
+        token=notion_data["access_token"],
+        title_prop_name="Name",  # TODO add some kinda of config for user to choose
+    )
+    google_tasks = GTasksList(
+        syncing_service_id=syncing_service_id,
+        client_config=google_data,
+        tasks_list_id="YTBIeks1amJKQUJLdnVqcg",
+    )
+    syncer = NotionTasksSynchronizer(
+        notion_service=notion_db,
+        google_tasks_service=google_tasks,
+    )
+    while True:
+        await syncer.sync()
+        await asyncio.sleep(10)
+
+
+@app.get("/test")
+async def test_():
+    services = SyncingServices.get_ready_services()
+    for service in services:
+        notion_data = service.service_notion_data
+        google_data = service.service_google_tasks_data
+        asyncio.create_task(
+            start_sync_notion_google_tasks(
+                syncing_service_id=service.id,
+                notion_data=notion_data,
+                google_data=google_data,
+            )
+        )
+
+    return {}
 
 
 @app.post("/token")

@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from databases import Database
-from sqlalchemy import JSON, Column, ForeignKey, String, create_engine
+from sqlalchemy import JSON, Boolean, Column, ForeignKey, String, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 from config import SQLALCHEMY_DATABASE_URL
@@ -57,13 +57,18 @@ class SyncingServices(BaseModel):
     user_id = Column(String, ForeignKey("users.id"))
     service_notion_data = Column(JSON, nullable=True)
     service_google_tasks_data = Column(JSON, nullable=True)
+    ready = Column(Boolean, default=False)
 
     user = relationship("User", back_populates="syncing_services")
 
     def save(self):
         db = SessionLocal()
         # if service already exists we update it
-        service = db.query(SyncingServices).filter(SyncingServices.user_id == self.user_id).first()
+        service = (
+            db.query(SyncingServices)
+            .filter(SyncingServices.user_id == self.user_id)
+            .first()
+        )
         if service:
             # We update
             if not service.service_google_tasks_data:
@@ -71,11 +76,20 @@ class SyncingServices(BaseModel):
             if not service.service_notion_data:
                 service.service_notion_data = self.service_notion_data
 
+            if service.service_google_tasks_data and service.service_notion_data:
+                service.ready = True
             db.close()
             return super(SyncingServices, service).save()
 
         db.close()
         return super().save()
+    
+    @classmethod
+    def get_ready_services(cls) -> list["SyncingServices"]:
+        db = SessionLocal()
+        services = db.query(SyncingServices).filter(SyncingServices.ready == True).all()
+        db.close()
+        return services
 
 
 class SyncedItem(BaseModel):
