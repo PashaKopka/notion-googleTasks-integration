@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import google_auth_oauthlib
 import requests
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -18,11 +18,14 @@ from config import (
     NOTION_AUTHORIZATION_URL,
     NOTION_OAUTH_CLIENT_ID,
     NOTION_OAUTH_CLIENT_SECRET,
+    NOTION_TITLE_PROP_NAME,
     NOTION_TOKEN_URL,
 )
 from models.models import SyncingServices, create_tables
 from services.google_tasks.google_tasks import GTasksList
+from services.google_tasks.google_tasks_profiler import GTasksProfiler
 from services.notion.notion_db import NotionDB
+from services.notion.notion_profiler import NotionProfiler
 from synchronizer import NotionTasksSynchronizer
 from utils.request_crypt import encode, generate_access_token, validate_token
 from utils.user_utils import (
@@ -125,14 +128,77 @@ async def test_():
     return {}
 
 
+@app.get("/user_data")
+def get_user_data(user: User = Depends(validate_token)):
+    syncing_service = SyncingServices.get_service_by_user_id(user.id)
+    notion_profiler = NotionProfiler(
+        syncing_service.service_notion_data["access_token"],
+    )
+    google_tasks_profiler = GTasksProfiler(
+        syncing_service.service_google_tasks_data,
+    )
+    lists = google_tasks_profiler.get_lists()
+    dbs = notion_profiler.get_lists()
+    return {
+        "username": user.email,
+        "is_syncing_service_ready": syncing_service.ready,
+        "options": {
+            "notion": {
+                "is_connected": syncing_service.service_notion_data is not None,
+                "chosed_list": syncing_service.service_notion_data[
+                    "duplicated_template_id"
+                ],
+                "title_prop_name": syncing_service.service_notion_data.get(
+                    "title_prop_name"
+                ),
+                "available_lists": dbs,
+            },
+            "google_tasks": {
+                "is_connected": syncing_service.service_google_tasks_data is not None,
+                "available_lists": lists,
+                "chosed_list": syncing_service.service_google_tasks_data.get(
+                    "tasks_list_id"
+                ),
+            },
+        },
+    }
+
+
+@app.post("/user_data")
+def save_user_data(
+    request: Request,
+    user: User = Depends(validate_token),
+    google_tasks_list_id: str = Body(None),
+    notion_list_id: str = Body(None),
+    notion_title_prop_name: str = Body(None),
+):
+    syncing_service = SyncingServices.get_service_by_user_id(user.id)
+    if google_tasks_list_id:
+        syncing_service.service_google_tasks_data["tasks_list_id"] = (
+            google_tasks_list_id
+        )
+    if notion_list_id:
+        syncing_service.service_notion_data["duplicated_template_id"] = notion_list_id
+    if notion_title_prop_name:
+        syncing_service.service_notion_data["title_prop_name"] = notion_title_prop_name
+
+    syncing_service.update()
+
+    return {"status": "ok"}
+
+
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = get_user(email=form_data.username)
     if not user or form_data.password != user.password:
         # TODO change to hashed password
         raise HTTPException(status_code=400, detail="Incorrect username or password")
-    access_token = generate_access_token(user)
-    return {"access_token": access_token, "token_type": "bearer"}
+    access_token, expired_in = generate_access_token(user)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expired_in": expired_in,
+    }
 
 
 @app.get("/notion/")
@@ -140,6 +206,7 @@ async def save_notion_connection(
     code: str, user: User = Depends(get_user_from_session)
 ):
     notion_data = get_notion_data(code)
+    notion_data["title_prop_name"] = NOTION_TITLE_PROP_NAME
     services = SyncingServices(
         user_id=user.id,
         service_notion_data=notion_data,

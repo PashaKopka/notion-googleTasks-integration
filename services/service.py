@@ -57,3 +57,9 @@ class AbstractService(ABC):
     @abstractmethod
     def _save_sync_ids(self, item: Item) -> None:
         raise NotImplementedError
+
+
+class AbstractProfiler(ABC):
+
+    def get_lists(self) -> list[dict]:
+        raise NotImplementedError

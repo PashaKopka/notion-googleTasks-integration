@@ -61,6 +61,17 @@ class SyncingServices(BaseModel):
 
     user = relationship("User", back_populates="syncing_services")
 
+    def update(self):
+        db = SessionLocal()
+        db.query(SyncingServices).filter(SyncingServices.user_id == self.user_id).update(
+            {
+                "service_notion_data": self.service_notion_data,
+                "service_google_tasks_data": self.service_google_tasks_data,
+            }
+        )
+        db.commit()
+        db.close()
+
     def save(self):
         db = SessionLocal()
         # if service already exists we update it
@@ -90,6 +101,13 @@ class SyncingServices(BaseModel):
         services = db.query(SyncingServices).filter(SyncingServices.ready == True).all()
         db.close()
         return services
+    
+    @classmethod
+    def get_service_by_user_id(cls, user_id: str) -> "SyncingServices":
+        db = SessionLocal()
+        service = db.query(SyncingServices).filter(SyncingServices.user_id == user_id).first()
+        db.close()
+        return service
 
 
 class SyncedItem(BaseModel):

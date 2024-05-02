@@ -79,8 +79,8 @@ class NotionTasksSynchronizer(Synchronizer):
     def _compare(
         self, notion_rows: list[Item], google_tasks_list: list[Item]
     ) -> tuple[list[Item]]:
-        new_items_notion = filter(lambda x: x.notion_id == "", google_tasks_list)
-        new_items_google = filter(lambda x: x.google_task_id == "", notion_rows)
+        new_items_notion = filter(lambda x: not x.notion_id, google_tasks_list)
+        new_items_google = filter(lambda x: not x.google_task_id, notion_rows)
 
         synced_items_google = filter(lambda x: x.notion_id != "", google_tasks_list)
 

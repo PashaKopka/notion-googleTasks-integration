@@ -38,7 +38,7 @@ def generate_access_token(user: User) -> str:
         + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-    return token
+    return token, payload["exp"]
 
 
 def validate_token(token: str = Security(oauth2_scheme)) -> User:

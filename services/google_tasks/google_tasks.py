@@ -4,7 +4,6 @@ import os
 import pickle
 
 import aiohttp
-
 import google_auth_oauthlib
 import google_auth_oauthlib.flow
 
@@ -79,10 +78,10 @@ class GTasksList(AbstractService):
         self._data_adapter = GTasksDataAdapter(tasks_list_id)
         self._syncing_service_id = syncing_service_id
 
-        self._pickle_file = "token_tasks_v1.pickle"
-
-        self._session = aiohttp.ClientSession()
-        self._credentials = None
+        self._session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60),
+        )
 
         self._headers = {"Authorization": f"Bearer {self._client_config['token']}"}
 
@@ -96,6 +95,7 @@ class GTasksList(AbstractService):
                     return await func(self, *args, **kwargs)
                 else:
                     return await e.json()
+
         return wrapper
 
     async def _refresh_token(self):
