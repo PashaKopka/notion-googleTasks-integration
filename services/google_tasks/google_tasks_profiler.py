@@ -32,7 +32,7 @@ class GTasksProfiler(AbstractProfiler):
 
         return wrapper
 
-    def _refresh_token(self):
+    def _refresh_token(self) -> None:
         response = self._session.post(
             self._client_config["token_uri"],
             data={

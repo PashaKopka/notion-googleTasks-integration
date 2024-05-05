@@ -1,10 +1,10 @@
-import asyncio
 import datetime
 import uuid
+
 import aiohttp
-from config import NOTION_DATABASE_ID, NOTION_TITLE_PROP_NAME, NOTION_TOKEN
+
 from models.models import SyncedItem
-from services.service import AbstractService, Item, AbstractDataAdapter
+from services.service import AbstractDataAdapter, AbstractService, Item
 
 
 class NotionDBDataAdapter(AbstractDataAdapter):
@@ -140,34 +140,3 @@ class NotionDB(AbstractService):
     def _save_sync_ids(self, item: Item) -> None:
         synced_item = SyncedItem.create_from_item(item, self._syncing_service_id)
         synced_item.save()
-
-
-async def main():
-    notion = NotionDB(
-        "57986fc8-3954-4623-a220-765bd5bf16c9",
-        NOTION_DATABASE_ID,
-        NOTION_TOKEN,
-        NOTION_TITLE_PROP_NAME,
-    )
-
-    items = await notion.get_all_items()
-    # print(items)
-    i = items[0]
-    i.name = "New name"
-    res = await notion.update_item(i)
-
-    res = await notion.add_item(
-        Item(
-            name="My new task",
-            status=False,
-            notion_id=str(uuid.uuid4()),
-            google_task_id="",
-            updated_at=datetime.datetime.now(),
-        )
-    )
-
-    print(res)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

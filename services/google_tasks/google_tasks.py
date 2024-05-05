@@ -1,14 +1,8 @@
-import asyncio
 import datetime
-import os
-import pickle
 
 import aiohttp
-import google_auth_oauthlib
-import google_auth_oauthlib.flow
 
-from config import GOOGLE_CLIENT_SECRET_FILE, GOOGLE_TASK_LIST_ID
-from models.models import SyncedItem, get_db
+from models.models import SyncedItem
 from services.service import AbstractDataAdapter, AbstractService, Item
 
 
@@ -16,7 +10,7 @@ class GTasksDataAdapter(AbstractDataAdapter):
 
     def __init__(self, tasks_list_id) -> None:
         super().__init__()
-        self._tasks_list_id = tasks_list_id
+        # self._tasks_list_id = tasks_list_id  # TODO remove this line if not used
 
     def dict_to_item(self, data: dict) -> Item:
         return Item(
@@ -59,7 +53,7 @@ class GTasksDataAdapter(AbstractDataAdapter):
 
 
 class GTasksList(AbstractService):
-    GOOGLE_TASKS_SCOPES = ["https://www.googleapis.com/auth/tasks"]
+    # GOOGLE_TASKS_SCOPES = ["https://www.googleapis.com/auth/tasks"]  TODO remove me
 
     GOOGLE_TASKS_GET_ALL_URL = "https://www.googleapis.com/tasks/v1/lists/{}/tasks?showCompleted=true&showHidden=true"
     GOOGLE_TASKS_UPDATE_URL = "https://www.googleapis.com/tasks/v1/lists/{}/tasks/{}"
@@ -98,7 +92,7 @@ class GTasksList(AbstractService):
 
         return wrapper
 
-    async def _refresh_token(self):
+    async def _refresh_token(self) -> None:
         async with self._session.post(
             self._client_config["token_uri"],
             data={
@@ -166,30 +160,3 @@ class GTasksList(AbstractService):
     @property
     def _add_task_url(self) -> str:
         return self.GOOGLE_TASKS_ADD_URL.format(self._tasks_list_id)
-
-
-async def main():
-    google_tasks = GTasksList(
-        syncing_service_id="234",
-        client_config=GOOGLE_CLIENT_SECRET_FILE,
-        tasks_list_id=GOOGLE_TASK_LIST_ID,
-    )
-
-    tasks = await google_tasks.get_all_items()
-    print(tasks)
-    t = tasks[0]
-    t.name = "New name"
-    res = await google_tasks.update_item(t)
-    print(res)
-
-    res = await google_tasks.add_item(
-        Item(name="My new task", status=False, notion_id="some_id", google_task_id="")
-    )
-    print(res)
-
-    new_t = await google_tasks.get_item_by_id(t.google_task_id)
-    print(new_t)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

@@ -9,9 +9,7 @@ from services.service import Item
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
-
 database = Database(SQLALCHEMY_DATABASE_URL)
 
 
@@ -36,7 +34,9 @@ class User(BaseModel):
     password = Column(String)
 
     def save(self):
-        from utils.request_crypt import create_password
+        from utils.request_crypt import (
+            create_password,  # TODO up this string if possible
+        )
 
         self.password = create_password(self.password)
         return super().save()
@@ -94,8 +94,7 @@ class SyncingServices(BaseModel):
                 service.service_google_tasks_data = self.service_google_tasks_data
             if not service.service_notion_data:
                 service.service_notion_data = self.service_notion_data
-            db.close()
-            return super(SyncingServices, service).save()
+            service.update()
 
         db.close()
         return super().save()
@@ -116,7 +115,7 @@ class SyncingServices(BaseModel):
         db.close()
         return service
 
-    def ready_to_start_sync(self):
+    def ready_to_start_sync(self) -> bool:
         if not self.service_google_tasks_data or not self.service_notion_data:
             return False
 
@@ -146,7 +145,7 @@ class SyncedItem(BaseModel):
     syncing_service = relationship("SyncingServices")
 
     @classmethod
-    def get_by_sync_id(cls, **kwargs):
+    def get_by_sync_id(cls, **kwargs) -> "SyncedItem":
         if not kwargs:
             raise ValueError("At least one argument is required")
 
