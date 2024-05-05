@@ -107,7 +107,7 @@ class NotionDB(AbstractService):
                 self._database_url, headers=self._headers
             ) as response:
                 data = await response.json()
-                return self._data_adapter.dicts_to_items(data.get("results"))
+                return self._data_adapter.dicts_to_items(data.get("results", []))
 
     async def get_item_by_id(self, item_id: str) -> Item:
         async with aiohttp.ClientSession() as session:

@@ -1,14 +1,16 @@
 import base64
 import datetime
+import hashlib
 import json
+import os
 
 import jwt
 from fastapi import HTTPException, Security
 from fastapi.security import OAuth2PasswordBearer
 from jwt import ExpiredSignatureError, InvalidTokenError, decode
 
-from config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
-from utils.user_utils import User, get_user
+from config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SALT, SECRET_KEY
+from utils.user_utils import get_user
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -31,7 +33,7 @@ def decode_dict(data: str) -> dict:
     return json.loads(decoded_data)
 
 
-def generate_access_token(user: User) -> str:
+def generate_access_token(user) -> str:
     payload = {
         "sub": user.email,
         "exp": datetime.datetime.now(datetime.UTC)
@@ -41,7 +43,7 @@ def generate_access_token(user: User) -> str:
     return token, payload["exp"]
 
 
-def validate_token(token: str = Security(oauth2_scheme)) -> User:
+def validate_token(token: str = Security(oauth2_scheme)):
     try:
         payload = decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
@@ -58,3 +60,24 @@ def validate_token(token: str = Security(oauth2_scheme)) -> User:
     except InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
     raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+def create_password(password):
+    hashed_password = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        SALT,
+        100000,
+    )
+    return hashed_password
+
+
+def verify_password(password, hashed_password):
+    new_hashed_password = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        SALT,
+        100000,
+    )
+
+    return new_hashed_password == hashed_password

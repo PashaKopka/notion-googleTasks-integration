@@ -35,6 +35,12 @@ class User(BaseModel):
     email = Column(String, unique=True, index=True)
     password = Column(String)
 
+    def save(self):
+        from utils.request_crypt import create_password
+
+        self.password = create_password(self.password)
+        return super().save()
+
     @classmethod
     def get_by_id(cls, id_: str) -> "User":
         db = SessionLocal()
@@ -63,7 +69,9 @@ class SyncingServices(BaseModel):
 
     def update(self):
         db = SessionLocal()
-        db.query(SyncingServices).filter(SyncingServices.user_id == self.user_id).update(
+        db.query(SyncingServices).filter(
+            SyncingServices.user_id == self.user_id
+        ).update(
             {
                 "service_notion_data": self.service_notion_data,
                 "service_google_tasks_data": self.service_google_tasks_data,
@@ -86,28 +94,45 @@ class SyncingServices(BaseModel):
                 service.service_google_tasks_data = self.service_google_tasks_data
             if not service.service_notion_data:
                 service.service_notion_data = self.service_notion_data
-
-            if service.service_google_tasks_data and service.service_notion_data:
-                service.ready = True
             db.close()
             return super(SyncingServices, service).save()
 
         db.close()
         return super().save()
-    
+
     @classmethod
     def get_ready_services(cls) -> list["SyncingServices"]:
         db = SessionLocal()
         services = db.query(SyncingServices).filter(SyncingServices.ready == True).all()
         db.close()
         return services
-    
+
     @classmethod
     def get_service_by_user_id(cls, user_id: str) -> "SyncingServices":
         db = SessionLocal()
-        service = db.query(SyncingServices).filter(SyncingServices.user_id == user_id).first()
+        service = (
+            db.query(SyncingServices).filter(SyncingServices.user_id == user_id).first()
+        )
         db.close()
         return service
+
+    def ready_to_start_sync(self):
+        if not self.service_google_tasks_data or not self.service_notion_data:
+            return False
+
+        if not self.service_google_tasks_data["tasks_list_id"]:
+            return False
+
+        if not self.service_notion_data["duplicated_template_id"]:
+            return False
+
+        if not self.service_notion_data["title_prop_name"]:
+            return False
+
+        self.ready = True
+        self.update()
+
+        return True
 
 
 class SyncedItem(BaseModel):

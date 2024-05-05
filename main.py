@@ -21,13 +21,18 @@ from config import (
     NOTION_TITLE_PROP_NAME,
     NOTION_TOKEN_URL,
 )
-from models.models import SyncingServices, create_tables
+from models.models import SyncingServices, create_tables, User as UserDB
 from services.google_tasks.google_tasks import GTasksList
 from services.google_tasks.google_tasks_profiler import GTasksProfiler
 from services.notion.notion_db import NotionDB
 from services.notion.notion_profiler import NotionProfiler
 from synchronizer import NotionTasksSynchronizer
-from utils.request_crypt import encode, generate_access_token, validate_token
+from utils.request_crypt import (
+    encode,
+    generate_access_token,
+    validate_token,
+    verify_password,
+)
 from utils.user_utils import (
     User,
     get_user,
@@ -95,7 +100,7 @@ async def start_sync_notion_google_tasks(
         syncing_service_id=syncing_service_id,
         database_id=notion_data["duplicated_template_id"],
         token=notion_data["access_token"],
-        title_prop_name="Name",  # TODO add some kinda of config for user to choose
+        title_prop_name=notion_data["title_prop_name"],
     )
     google_tasks = GTasksList(
         syncing_service_id=syncing_service_id,
@@ -111,8 +116,9 @@ async def start_sync_notion_google_tasks(
         await asyncio.sleep(10)
 
 
-@app.get("/test")
-async def test_():
+@app.post("/restart_sync")
+async def restart_sync():
+    # TODO maybe rework this
     services = SyncingServices.get_ready_services()
     for service in services:
         notion_data = service.service_notion_data
@@ -128,9 +134,28 @@ async def test_():
     return {}
 
 
+@app.post("/start_sync")
+async def start_sync(user: User = Depends(validate_token)):
+    service = SyncingServices.get_service_by_user_id(user.id)
+    if not service.ready_to_start_sync():
+        return {"error": "Not all services are connected"}
+    notion_data = service.service_notion_data
+    google_data = service.service_google_tasks_data
+    asyncio.create_task(
+        start_sync_notion_google_tasks(
+            syncing_service_id=service.id,
+            notion_data=notion_data,
+            google_data=google_data,
+        )
+    )
+    return {}
+
+
 @app.get("/user_data")
 def get_user_data(user: User = Depends(validate_token)):
     syncing_service = SyncingServices.get_service_by_user_id(user.id)
+    if not syncing_service:
+        return {"username": user.email, "is_syncing_service_ready": False}
     notion_profiler = NotionProfiler(
         syncing_service.service_notion_data["access_token"],
     )
@@ -166,7 +191,6 @@ def get_user_data(user: User = Depends(validate_token)):
 
 @app.post("/user_data")
 def save_user_data(
-    request: Request,
     user: User = Depends(validate_token),
     google_tasks_list_id: str = Body(None),
     notion_list_id: str = Body(None),
@@ -184,14 +208,33 @@ def save_user_data(
 
     syncing_service.update()
 
-    return {"status": "ok"}
+    return {}
+
+
+@app.post("/register")
+async def register(
+    username: str = Body(None),
+    password: str = Body(None),
+):
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+    user = UserDB(
+        email=username,
+        password=password,
+    )
+    user.save()
+    access_token, expired_in = generate_access_token(user)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expired_in": expired_in,
+    }
 
 
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = get_user(email=form_data.username)
-    if not user or form_data.password != user.password:
-        # TODO change to hashed password
+    if not user or verify_password(form_data.password, user.password):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     access_token, expired_in = generate_access_token(user)
     return {
