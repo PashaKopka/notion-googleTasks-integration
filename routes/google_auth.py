@@ -23,7 +23,7 @@ def get_google_task_data(credentials):
     return json.loads(credentials.to_json())
 
 
-def absolute_url_for(url_name: str, base_url: str = HOST):
+def absolute_url_for(url_name: str, base_url: str = HOST + "/google_tasks"):
     redirect_path = router.url_path_for(url_name)
     return redirect_path.make_absolute_url(base_url=base_url)
 
@@ -42,7 +42,7 @@ async def save_google_connection(
         GOOGLE_CLIENT_SECRET_FILE, scopes=[scope], state=state
     )
     redirect_path = router.url_path_for("save_google_connection")
-    flow.redirect_uri = str(redirect_path.make_absolute_url(base_url=HOST))
+    flow.redirect_uri = str(redirect_path.make_absolute_url(base_url=HOST + "/google_tasks"))
     authorization_response = "https://" + str(request.url)[7:]
     flow.fetch_token(authorization_response=authorization_response)
     credentials = get_google_task_data(flow.credentials)

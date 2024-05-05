@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -20,34 +22,44 @@ def get_user_data(user: User = Depends(validate_token)):
     syncing_service = SyncingServices.get_service_by_user_id(user.id)
     if not syncing_service:
         return {"username": user.email, "is_syncing_service_ready": False}
-    notion_profiler = NotionProfiler(
-        syncing_service.service_notion_data["access_token"],
-    )
-    google_tasks_profiler = GTasksProfiler(
-        syncing_service.service_google_tasks_data,
-    )
-    lists = google_tasks_profiler.get_lists()
-    dbs = notion_profiler.get_lists()
+
+    try:
+        notion_profiler = NotionProfiler(
+            syncing_service.service_notion_data["access_token"],
+        )
+        dbs = notion_profiler.get_lists()
+    except Exception as e:
+        logger.error(f"Error while getting notion data for user {user.email}: {e}")
+        dbs = []
+
+    try:
+        google_tasks_profiler = GTasksProfiler(
+            syncing_service.service_google_tasks_data,
+        )
+        lists = google_tasks_profiler.get_lists()
+    except Exception as e:
+        logger.error(f"Error while getting google data for user {user.email}: {e}")
+        lists = []
+
+    notion_data = syncing_service.service_notion_data or {}
+    google_data = syncing_service.service_google_tasks_data or {}
+
     return {
         "username": user.email,
+        "is_ready": syncing_service.ready_to_start_sync(),
         "is_syncing_service_ready": syncing_service.ready,
+        "is_active": syncing_service.is_active,
         "options": {
             "notion": {
-                "is_connected": syncing_service.service_notion_data is not None,
-                "chosed_list": syncing_service.service_notion_data[
-                    "duplicated_template_id"
-                ],
-                "title_prop_name": syncing_service.service_notion_data.get(
-                    "title_prop_name"
-                ),
+                "is_connected": bool(notion_data),
+                "chosed_list": notion_data.get("duplicated_template_id"),
+                "title_prop_name": notion_data.get("title_prop_name"),
                 "available_lists": dbs,
             },
             "google_tasks": {
-                "is_connected": syncing_service.service_google_tasks_data is not None,
+                "is_connected": bool(google_data),
                 "available_lists": lists,
-                "chosed_list": syncing_service.service_google_tasks_data.get(
-                    "tasks_list_id"
-                ),
+                "chosed_list": google_data.get("tasks_list_id"),
             },
         },
     }

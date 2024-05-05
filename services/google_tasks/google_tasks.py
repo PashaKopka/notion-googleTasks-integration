@@ -2,15 +2,17 @@ import datetime
 
 import aiohttp
 
+from logger import get_logger
 from models.models import SyncedItem
 from services.service import AbstractDataAdapter, AbstractService, Item
+
+logger = get_logger(__name__)
 
 
 class GTasksDataAdapter(AbstractDataAdapter):
 
-    def __init__(self, tasks_list_id) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        # self._tasks_list_id = tasks_list_id  # TODO remove this line if not used
 
     def dict_to_item(self, data: dict) -> Item:
         return Item(
@@ -55,21 +57,20 @@ class GTasksDataAdapter(AbstractDataAdapter):
 class GTasksList(AbstractService):
     # GOOGLE_TASKS_SCOPES = ["https://www.googleapis.com/auth/tasks"]  TODO remove me
 
-    GOOGLE_TASKS_GET_ALL_URL = "https://www.googleapis.com/tasks/v1/lists/{}/tasks?showCompleted=true&showHidden=true"
-    GOOGLE_TASKS_UPDATE_URL = "https://www.googleapis.com/tasks/v1/lists/{}/tasks/{}"
-    GOOGLE_TASKS_ADD_URL = "https://www.googleapis.com/tasks/v1/lists/{}/tasks"
+    GOOGLE_TASKS_GET_ALL_URL = "https://tasks.googleapis.com/tasks/v1/lists/{}/tasks?showCompleted=true&showHidden=true"
+    GOOGLE_TASKS_UPDATE_URL = "https://tasks.googleapis.com/tasks/v1/lists/{}/tasks/{}"
+    GOOGLE_TASKS_ADD_URL = "https://tasks.googleapis.com/tasks/v1/lists/{}/tasks"
 
     def __init__(
         self,
         syncing_service_id: str,
         client_config: dict,
-        tasks_list_id: str,
     ) -> None:
         super().__init__()
         self._client_config = client_config
 
-        self._tasks_list_id = tasks_list_id
-        self._data_adapter = GTasksDataAdapter(tasks_list_id)
+        self._tasks_list_id = client_config["tasks_list_id"]
+        self._data_adapter = GTasksDataAdapter()
         self._syncing_service_id = syncing_service_id
 
         self._session = aiohttp.ClientSession(
@@ -88,7 +89,7 @@ class GTasksList(AbstractService):
                     await self._refresh_token()
                     return await func(self, *args, **kwargs)
                 else:
-                    return await e.json()
+                    logger.error(e)
 
         return wrapper
 

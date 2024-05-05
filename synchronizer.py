@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 import asyncio
-import time
-import config
 
 from models.models import SyncedItem
 from services.google_tasks.google_tasks import GTasksList
@@ -68,7 +66,7 @@ class NotionTasksSynchronizer(Synchronizer):
         return items
 
     async def _get_google_tasks_list(self) -> list[Item]:
-        items = await self._google_task_list.get_all_items()
+        items = await self._google_task_list.get_all_items() or []
         for item in items:
             synced_item = SyncedItem.get_by_sync_id(google_task_id=item.google_task_id)
             if synced_item:
@@ -124,28 +122,3 @@ class NotionTasksSynchronizer(Synchronizer):
 
         for item in notion_rows_update_list:
             asyncio.create_task(self._notion_db.update_item(item))
-
-
-async def main():
-    notion = NotionDB(
-        "234",
-        config.NOTION_DATABASE_ID,
-        config.NOTION_TOKEN,
-        config.NOTION_TITLE_PROP_NAME,
-    )
-    google_tasks = GTasksList(
-        "234",
-        config.GOOGLE_CLIENT_SECRET_FILE,
-        config.GOOGLE_TASK_LIST_ID,
-    )
-    syncer = NotionTasksSynchronizer(
-        notion_service=notion,
-        google_tasks_service=google_tasks,
-    )
-    while True:
-        await syncer.sync()
-        await asyncio.sleep(20)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

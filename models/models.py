@@ -62,6 +62,8 @@ class SyncingServices(BaseModel):
     service_notion_data = Column(JSON, nullable=True)
     service_google_tasks_data = Column(JSON, nullable=True)
     ready = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=False)
+    task_id = Column(String, nullable=True)
 
     user = relationship("User", back_populates="syncing_services")
 
@@ -73,6 +75,9 @@ class SyncingServices(BaseModel):
             {
                 "service_notion_data": self.service_notion_data,
                 "service_google_tasks_data": self.service_google_tasks_data,
+                "ready": self.ready,
+                "is_active": self.is_active,
+                "task_id": self.task_id,
             }
         )
         db.commit()
@@ -93,6 +98,7 @@ class SyncingServices(BaseModel):
             if not service.service_notion_data:
                 service.service_notion_data = self.service_notion_data
             service.update()
+            return service
 
         db.close()
         return super().save()
@@ -117,13 +123,13 @@ class SyncingServices(BaseModel):
         if not self.service_google_tasks_data or not self.service_notion_data:
             return False
 
-        if not self.service_google_tasks_data["tasks_list_id"]:
+        if not self.service_google_tasks_data.get("tasks_list_id"):
             return False
 
-        if not self.service_notion_data["duplicated_template_id"]:
+        if not self.service_notion_data.get("duplicated_template_id"):
             return False
 
-        if not self.service_notion_data["title_prop_name"]:
+        if not self.service_notion_data.get("title_prop_name"):
             return False
 
         self.ready = True

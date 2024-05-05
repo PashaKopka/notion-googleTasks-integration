@@ -27,7 +27,6 @@ async def start_sync_notion_google_tasks(
     google_tasks = GTasksList(
         syncing_service_id=syncing_service_id,
         client_config=google_data,
-        tasks_list_id="YTBIeks1amJKQUJLdnVqcg",
     )
     syncer = NotionTasksSynchronizer(
         notion_service=notion_db,
@@ -44,13 +43,14 @@ async def restart_sync():
     for service in services:
         notion_data = service.service_notion_data
         google_data = service.service_google_tasks_data
-        asyncio.create_task(
+        task = asyncio.create_task(
             start_sync_notion_google_tasks(
                 syncing_service_id=service.id,
                 notion_data=notion_data,
                 google_data=google_data,
             )
         )
+        logger.info(f"Restarted sync for service {service.id} with task_id {id(task)}")
 
 
 @router.post("/start_sync")
@@ -67,5 +67,25 @@ async def start_sync(user: User = Depends(validate_token)):
             google_data=google_data,
         )
     )
+
+    service.is_active = True
+    service.task_id = str(id(task))
+    service.update()
+
     logger.info(f"User {user.email} started sync with task_id {id(task)}")
     return {"task_id": id(task)}
+
+
+@router.post("/stop_sync")
+async def stop_sync(user: User = Depends(validate_token)):
+    service = SyncingServices.get_service_by_user_id(user.id)
+    task_id = service.task_id
+    tasks = asyncio.all_tasks()
+    for task in tasks:
+        if str(id(task)) == task_id:
+            task.cancel()
+            service.is_active = False
+            service.task_id = None
+            service.update()
+            logger.info(f"User {user.email} stopped sync with task_id {id(task)}")
+            break
