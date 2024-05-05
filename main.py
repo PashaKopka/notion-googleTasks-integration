@@ -6,10 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from config import FRONT_END_HOST
+from logger import get_logger
 from models.models import create_tables
 from utils.request_utils import get_user_by_session_state, set_user_by_session_state
 
 app = FastAPI()
+logger = get_logger(__name__)
 
 SESSION = defaultdict(dict)
 redirect_to_home = RedirectResponse(FRONT_END_HOST)
@@ -17,7 +19,8 @@ redirect_to_home = RedirectResponse(FRONT_END_HOST)
 
 from routes.google_auth import router as google_auth_router
 from routes.notion_auth import router as notion_auth_router
-from routes.sync import restart_sync, router as sync_router
+from routes.sync import restart_sync
+from routes.sync import router as sync_router
 from routes.user import router as user_router
 
 app.include_router(notion_auth_router, prefix="/notion")
@@ -43,6 +46,7 @@ set_user_to_session = set_user_by_session_state(SESSION)
 
 
 if __name__ == "__main__":
+    logger.info("Starting application")
     create_tables()
     asyncio.run(restart_sync())
     import uvicorn

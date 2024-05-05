@@ -34,9 +34,7 @@ class User(BaseModel):
     password = Column(String)
 
     def save(self):
-        from utils.request_crypt import (
-            create_password,  # TODO up this string if possible
-        )
+        from utils.crypt_utils import create_password  # TODO up this string if possible
 
         self.password = create_password(self.password)
         return super().save()

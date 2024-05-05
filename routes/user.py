@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 
+from logger import get_logger
 from models.models import SyncingServices
 from models.models import User as UserDB
 from services.google_tasks.google_tasks_profiler import GTasksProfiler
@@ -9,10 +10,13 @@ from utils.crypt_utils import generate_access_token, validate_token, verify_pass
 from utils.pydantic_class import User
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.get("/user_data")
 def get_user_data(user: User = Depends(validate_token)):
+    logger.info(f"Getting user data for {user.email}")
+
     syncing_service = SyncingServices.get_service_by_user_id(user.id)
     if not syncing_service:
         return {"username": user.email, "is_syncing_service_ready": False}
@@ -56,6 +60,8 @@ def save_user_data(
     notion_list_id: str = Body(None),
     notion_title_prop_name: str = Body(None),
 ):
+    logger.info(f"Saving user data for {user.email}")
+
     syncing_service = SyncingServices.get_service_by_user_id(user.id)
     if google_tasks_list_id:
         syncing_service.service_google_tasks_data["tasks_list_id"] = (
@@ -85,6 +91,8 @@ async def register(
         password=password,
     )
     user.save()
+
+    logger.info(f"User {username} registered, id {user.id}")
     access_token, expired_in = generate_access_token(user)
     return {
         "access_token": access_token,
@@ -99,6 +107,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     if not user or verify_password(form_data.password, user.password):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     access_token, expired_in = generate_access_token(user)
+    logger.info(f"User {user.email} logged in")
     return {
         "access_token": access_token,
         "token_type": "bearer",
