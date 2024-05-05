@@ -1,6 +1,5 @@
 from uuid import uuid4
 
-from databases import Database
 from sqlalchemy import JSON, Boolean, Column, ForeignKey, String, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
@@ -10,7 +9,6 @@ from services.service import Item
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-database = Database(SQLALCHEMY_DATABASE_URL)
 
 
 class BaseModel(Base):
