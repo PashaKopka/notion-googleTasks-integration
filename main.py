@@ -1,3 +1,4 @@
+import asyncio
 from collections import defaultdict
 
 from fastapi import FastAPI
@@ -16,7 +17,7 @@ redirect_to_home = RedirectResponse(FRONT_END_HOST)
 
 from routes.google_auth import router as google_auth_router
 from routes.notion_auth import router as notion_auth_router
-from routes.sync import router as sync_router
+from routes.sync import restart_sync, router as sync_router
 from routes.user import router as user_router
 
 app.include_router(notion_auth_router, prefix="/notion")
@@ -43,6 +44,7 @@ set_user_to_session = set_user_by_session_state(SESSION)
 
 if __name__ == "__main__":
     create_tables()
+    asyncio.run(restart_sync())
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

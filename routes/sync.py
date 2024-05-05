@@ -35,9 +35,7 @@ async def start_sync_notion_google_tasks(
         await asyncio.sleep(10)
 
 
-@router.post("/restart_sync")
 async def restart_sync():
-    # TODO maybe rework this
     services = SyncingServices.get_ready_services()
     for service in services:
         notion_data = service.service_notion_data
@@ -49,8 +47,6 @@ async def restart_sync():
                 google_data=google_data,
             )
         )
-
-    return {}
 
 
 @router.post("/start_sync")
