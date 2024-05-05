@@ -3,6 +3,7 @@ import uuid
 
 import aiohttp
 
+from config import NOTION_VERSION
 from models.models import SyncedItem
 from services.service import AbstractDataAdapter, AbstractService, Item
 
@@ -92,7 +93,7 @@ class NotionDB(AbstractService):
         self._headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "Notion-Version": "2022-02-22",
+            "Notion-Version": NOTION_VERSION,
         }
         self._database_url = self.DATABASE_URL_FORMAT.format(database_id)
         self._title_prop_name = title_prop_name

@@ -25,7 +25,7 @@ from routes.user import router as user_router
 
 app.include_router(notion_auth_router, prefix="/notion")
 app.include_router(google_auth_router, prefix="/google_tasks")
-app.include_router(sync_router)  # TODO prefix="/sync"
+app.include_router(sync_router, prefix="/sync")
 app.include_router(user_router)
 
 origins = [

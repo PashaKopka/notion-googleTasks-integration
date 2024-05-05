@@ -1,5 +1,6 @@
 import requests
 
+from config import NOTION_VERSION
 from services.service import AbstractProfiler
 
 
@@ -14,7 +15,7 @@ class NotionProfiler(AbstractProfiler):
         self._headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "Notion-Version": "2022-02-22",  # TODO Notion version should be in config
+            "Notion-Version": NOTION_VERSION,
         }
         self._session = requests.Session()
 
