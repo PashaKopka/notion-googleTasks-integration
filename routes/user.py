@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, Form, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 
 from logger import get_logger
@@ -89,8 +89,8 @@ def save_user_data(
 
 @router.post("/register")
 async def register(
-    username: str = Body(None),
-    password: str = Body(None),
+    username: str = Form(None),
+    password: str = Form(None),
 ):
     if not username or not password:
         raise HTTPException(
