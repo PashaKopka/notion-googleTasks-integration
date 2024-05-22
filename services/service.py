@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(slots=True)
 class Item:
     name: str
     status: bool
