@@ -4,7 +4,6 @@ import datetime
 import pytest
 from aioresponses import aioresponses
 
-from services.google_tasks.google_tasks import GTasksDataAdapter as Adapter
 from services.google_tasks.google_tasks import GTasksList
 from services.service import Item
 
