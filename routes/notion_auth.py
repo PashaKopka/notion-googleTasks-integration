@@ -1,5 +1,6 @@
 import requests
 from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import (
     HOST,
@@ -10,10 +11,11 @@ from config import (
     NOTION_TOKEN_URL,
 )
 from logger import get_logger
-from models.models import SyncingServices
+from models.models import get_db
 from utils.crypt_utils import encode, validate_token
 from utils.pydantic_class import User
 from utils.request_utils import get_user_by_session_state, set_user_by_session_state
+from routes.routes_utils import create_or_update_syncing_service
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -46,17 +48,20 @@ def get_notion_data(code: str):
 
 @router.get("/")
 async def save_notion_connection(
-    code: str, user: User = Depends(get_user_from_session)
+    code: str,
+    user: User = Depends(get_user_from_session),
+    db: AsyncSession = Depends(get_db),
 ):
     logger.info(f"User {user.email} save Notion connection")
 
     notion_data = get_notion_data(code)
     notion_data["title_prop_name"] = NOTION_TITLE_PROP_NAME
-    services = SyncingServices(
+    await create_or_update_syncing_service(
         user_id=user.id,
-        service_notion_data=notion_data,
+        google_tasks_data=None,
+        notion_data=notion_data,
+        db=db,
     )
-    services.save()
 
     logger.info(f"User {user.email} connected Notion")
     return redirect_to_home

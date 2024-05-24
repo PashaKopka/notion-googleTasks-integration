@@ -5,6 +5,7 @@ import aiohttp
 from logger import get_logger
 from models.models import SyncedItem
 from services.service import AbstractDataAdapter, AbstractService, Item
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -65,6 +66,7 @@ class GTasksList(AbstractService):
         self,
         syncing_service_id: str,
         client_config: dict,
+        db: AsyncSession,
     ) -> None:
         super().__init__()
         self._client_config = client_config
@@ -79,6 +81,8 @@ class GTasksList(AbstractService):
         )
 
         self._headers = {"Authorization": f"Bearer {self._client_config['token']}"}
+
+        self._db = db
 
     def refresh_token(func):
         async def wrapper(self, *args, **kwargs):
@@ -144,11 +148,11 @@ class GTasksList(AbstractService):
         ) as response:
             data = await response.json()
             item.google_task_id = data.get("id")
-            self._save_sync_ids(item)
+            await self._save_sync_ids(item)
 
-    def _save_sync_ids(self, item: Item) -> None:
+    async def _save_sync_ids(self, item: Item) -> None:
         synced_item = SyncedItem.create_from_item(item, self._syncing_service_id)
-        synced_item.save()
+        await synced_item.save(self._db)
 
     @property
     def _get_all_tasks_url(self) -> str:

@@ -37,15 +37,12 @@ def test_validate_token():
 
 def test_create_password():
     result = create_password("password")
-    assert (
-        result
-        == b"\\\x96F\xafC\x90zQ*\x8aBQ\x18\x9b\xa3`\n\x0be}\x93\x13\x86a\x82\x16\xe4Wr\xee\xf8\x11"
-    )
+    assert result == "5c9646af43907a512a8a4251189ba3600a0b657d931386618216e45772eef811"
 
 
 def test_verify_password():
     result = verify_password(
         "password",
-        b"\\\x96F\xafC\x90zQ*\x8aBQ\x18\x9b\xa3`\n\x0be}\x93\x13\x86a\x82\x16\xe4Wr\xee\xf8\x11",
+        "5c9646af43907a512a8a4251189ba3600a0b657d931386618216e45772eef811",
     )
     assert result is True

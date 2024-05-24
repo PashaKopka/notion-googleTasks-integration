@@ -1,123 +1,127 @@
+import asyncio
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, Column, ForeignKey, String, create_engine
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy import JSON, ForeignKey, select, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.pool import NullPool
 
 from config import SQLALCHEMY_DATABASE_URL
 from services.service import Item
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+engine = create_async_engine(SQLALCHEMY_DATABASE_URL, poolclass=NullPool)
+SessionLocal = async_sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    expire_on_commit=False,
+)
 
 
-class BaseModel(Base):
+async def get_db():
+    async with SessionLocal() as session:
+        yield session
+
+
+class BaseModel(DeclarativeBase):
     __abstract__ = True
 
-    def save(self):
+    async def save(self, db: AsyncSession):
+        if not db:
+            raise ValueError("Database session is required")
+
         self.id = str(uuid4())
-        db = SessionLocal()
         db.add(self)
-        db.commit()
-        db.refresh(self)
-        db.close()
+        await db.commit()
+        await db.refresh(self)
+
         return self
 
 
 class User(BaseModel):
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    password = Column(String)
+    id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(unique=True, index=True)
+    password: Mapped[str] = mapped_column()
 
-    def save(self):
+    async def save(self, db: AsyncSession = None):
         from utils.crypt_utils import create_password
 
         self.password = create_password(self.password)
-        return super().save()
+        return await super().save(db)
 
     @classmethod
-    def get_by_id(cls, id_: str) -> "User":
-        db = SessionLocal()
-        user = db.query(User).filter(User.id == id_).first()
-        db.close()
+    async def get_by_id(cls, id_: str, db: AsyncSession) -> "User":
+        result = await db.execute(select(User).where(User.id == id_))
+        user = result.scalars().first()
         return user
 
     @classmethod
-    def get_by_email(cls, email: str) -> "User":
-        db = SessionLocal()
-        user = db.query(User).filter(User.email == email).first()
-        db.close()
+    async def get_by_email(cls, email: str, db: AsyncSession) -> "User":
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalars().first()
         return user
 
 
 class SyncingServices(BaseModel):
     __tablename__ = "syncing_services"
 
-    id = Column(String, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"))
-    service_notion_data = Column(JSON, nullable=True)
-    service_google_tasks_data = Column(JSON, nullable=True)
-    ready = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=False)
-    task_id = Column(String, nullable=True)
+    id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    service_notion_data: Mapped[JSON] = mapped_column(type_=JSON, nullable=True)
+    service_google_tasks_data: Mapped[JSON] = mapped_column(type_=JSON, nullable=True)
+    ready: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=False)
+    task_id: Mapped[str] = mapped_column(nullable=True)
 
     user = relationship("User", back_populates="syncing_services")
 
-    def update(self):
-        db = SessionLocal()
-        db.query(SyncingServices).filter(
-            SyncingServices.user_id == self.user_id
-        ).update(
-            {
-                "service_notion_data": self.service_notion_data,
-                "service_google_tasks_data": self.service_google_tasks_data,
-                "ready": self.ready,
-                "is_active": self.is_active,
-                "task_id": self.task_id,
-            }
-        )
-        db.commit()
-        db.close()
+    @classmethod
+    async def update(
+        self,
+        user_id: str,
+        values: dict,
+        db: AsyncSession,
+    ) -> "SyncingServices":
+        query = select(SyncingServices).where(SyncingServices.user_id == user_id)
+        result = await db.execute(query)
+        service = result.scalars().first()
 
-    def save(self):
-        db = SessionLocal()
-        # if service already exists we update it
-        service = (
-            db.query(SyncingServices)
-            .filter(SyncingServices.user_id == self.user_id)
-            .first()
-        )
-        if service:
-            # We update
-            if not service.service_google_tasks_data:
-                service.service_google_tasks_data = self.service_google_tasks_data
-            if not service.service_notion_data:
-                service.service_notion_data = self.service_notion_data
-            service.update()
-            return service
+        if not service:
+            raise ValueError("Service not found")
 
-        db.close()
-        return super().save()
+        stmt = (
+            update(SyncingServices)
+            .where(SyncingServices.user_id == user_id)
+            .values(**values)
+            .execution_options(synchronize_session="fetch")
+        )
+
+        result = await db.execute(stmt)
+        await db.commit()
+
+        return service
 
     @classmethod
-    def get_ready_services(cls) -> list["SyncingServices"]:
-        db = SessionLocal()
-        services = db.query(SyncingServices).filter(SyncingServices.ready == True).all()
-        db.close()
+    async def get_ready_services(cls, db: AsyncSession) -> list["SyncingServices"]:
+        results = await db.execute(
+            select(SyncingServices).where(SyncingServices.ready == True)
+        )
+        services = results.scalars().all()
         return services
 
     @classmethod
-    def get_service_by_user_id(cls, user_id: str) -> "SyncingServices":
-        db = SessionLocal()
-        service = (
-            db.query(SyncingServices).filter(SyncingServices.user_id == user_id).first()
+    async def get_service_by_user_id(
+        cls, user_id: str, db: AsyncSession
+    ) -> "SyncingServices":
+        result = await db.execute(
+            select(SyncingServices).where(SyncingServices.user_id == user_id)
         )
-        db.close()
+        service = result.scalars().first()
         return service
 
-    def ready_to_start_sync(self) -> bool:
+    async def ready_to_start_sync(self, db: AsyncSession) -> bool:
         if not self.service_google_tasks_data or not self.service_notion_data:
             return False
 
@@ -130,8 +134,9 @@ class SyncingServices(BaseModel):
         if not self.service_notion_data.get("title_prop_name"):
             return False
 
-        self.ready = True
-        self.update()
+        if not self.ready:
+            self.ready = True
+            await self.save(db)
 
         return True
 
@@ -139,15 +144,15 @@ class SyncingServices(BaseModel):
 class SyncedItem(BaseModel):
     __tablename__ = "synced_item"
 
-    id = Column(String, primary_key=True, index=True)
-    notion_id = Column(String)
-    google_task_id = Column(String)
+    id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    notion_id: Mapped[str] = mapped_column()
+    google_task_id: Mapped[str] = mapped_column()
+    syncing_service_id: Mapped[str] = mapped_column(ForeignKey("syncing_services.id"))
 
-    syncing_service_id = Column(String, ForeignKey("syncing_services.id"))
     syncing_service = relationship("SyncingServices")
 
     @classmethod
-    def get_by_sync_id(cls, **kwargs) -> "SyncedItem":
+    async def get_by_sync_id(cls, db: AsyncSession, **kwargs) -> "SyncedItem":
         if not kwargs:
             raise ValueError("At least one argument is required")
 
@@ -155,10 +160,8 @@ class SyncedItem(BaseModel):
             cls.get_column_by_name(key) == value for key, value in kwargs.items()
         ]
 
-        db = SessionLocal()
-        item = db.query(SyncedItem).filter(*filters).first()
-        db.close()
-        return item
+        item = await db.execute(select(SyncedItem).filter(*filters))
+        return item.scalars().first()
 
     @classmethod
     def get_column_by_name(cls, column_name: str):
@@ -176,13 +179,6 @@ class SyncedItem(BaseModel):
 User.syncing_services = relationship("SyncingServices", back_populates="user")
 
 
-def create_tables():
-    Base.metadata.create_all(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def create_all_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(BaseModel.metadata.create_all)

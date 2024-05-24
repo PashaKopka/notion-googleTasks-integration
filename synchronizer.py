@@ -1,5 +1,7 @@
-from abc import ABC, abstractmethod
 import asyncio
+from abc import ABC, abstractmethod
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import SyncedItem
 from services.google_tasks.google_tasks import GTasksList
@@ -30,12 +32,16 @@ class Synchronizer(ABC):
 class NotionTasksSynchronizer(Synchronizer):
 
     def __init__(
-        self, notion_service: NotionDB, google_tasks_service: GTasksList
+        self,
+        notion_service: NotionDB,
+        google_tasks_service: GTasksList,
+        db: AsyncSession,
     ) -> None:
         super().__init__()
 
         self._google_task_list = google_tasks_service
         self._notion_db = notion_service
+        self._db = db
 
     async def sync(self):
         notion_rows = await self._get_notion_rows()
@@ -59,7 +65,7 @@ class NotionTasksSynchronizer(Synchronizer):
     async def _get_notion_rows(self) -> list[Item]:
         items = await self._notion_db.get_all_items()
         for item in items:
-            synced_item = SyncedItem.get_by_sync_id(notion_id=item.notion_id)
+            synced_item = await SyncedItem.get_by_sync_id(notion_id=item.notion_id, db=self._db)
             if synced_item:
                 item.google_task_id = synced_item.google_task_id
 
@@ -68,7 +74,9 @@ class NotionTasksSynchronizer(Synchronizer):
     async def _get_google_tasks_list(self) -> list[Item]:
         items = await self._google_task_list.get_all_items() or []
         for item in items:
-            synced_item = SyncedItem.get_by_sync_id(google_task_id=item.google_task_id)
+            synced_item = await SyncedItem.get_by_sync_id(
+                google_task_id=item.google_task_id, db=self._db
+            )
             if synced_item:
                 item.notion_id = synced_item.notion_id
 

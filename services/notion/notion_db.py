@@ -2,6 +2,7 @@ import datetime
 import uuid
 
 import aiohttp
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import NOTION_VERSION
 from models.models import SyncedItem
@@ -85,6 +86,7 @@ class NotionDB(AbstractService):
         database_id: str,
         token: str,
         title_prop_name: str,
+        db: AsyncSession,
     ) -> None:
         super().__init__()
 
@@ -101,6 +103,8 @@ class NotionDB(AbstractService):
 
         self._data_adapter = NotionDBDataAdapter(title_prop_name, database_id)
         self._syncing_service_id = syncing_service_id
+
+        self._db = db
 
     async def get_all_items(self) -> list[Item]:
         async with aiohttp.ClientSession() as session:
@@ -136,8 +140,8 @@ class NotionDB(AbstractService):
             ) as response:
                 data = await response.json()
                 item.notion_id = data.get("id")
-                self._save_sync_ids(item)
+                await self._save_sync_ids(item)
 
-    def _save_sync_ids(self, item: Item) -> None:
+    async def _save_sync_ids(self, item: Item) -> None:
         synced_item = SyncedItem.create_from_item(item, self._syncing_service_id)
-        synced_item.save()
+        await synced_item.save(self._db)

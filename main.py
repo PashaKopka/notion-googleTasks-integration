@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 
 from config import FRONT_END_HOST
 from logger import get_logger
-from models.models import create_tables
+from models.models import create_all_tables
 from utils.request_utils import get_user_by_session_state, set_user_by_session_state
 
 app = FastAPI()
@@ -47,7 +47,7 @@ set_user_to_session = set_user_by_session_state(SESSION)
 
 if __name__ == "__main__":
     logger.info("Starting application")
-    create_tables()
+    asyncio.run(create_all_tables())
     asyncio.run(restart_sync())
     import uvicorn
 
