@@ -91,4 +91,4 @@ def verify_password(password: str, hashed_password: str) -> bool:
         ENCODING_ITERATIONS,
     ).hex()
 
-    return new_hashed_password == hashed_password  # TODO test login
+    return new_hashed_password == hashed_password
