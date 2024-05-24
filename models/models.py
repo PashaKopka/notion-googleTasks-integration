@@ -37,6 +37,13 @@ class BaseModel(DeclarativeBase):
 
         return self
 
+    async def delete(self, db: AsyncSession):
+        if not db:
+            raise ValueError("Database session is required")
+
+        await db.delete(self)
+        await db.commit()
+
 
 class User(BaseModel):
     __tablename__ = "users"
@@ -176,7 +183,11 @@ class SyncedItem(BaseModel):
         )
 
 
-User.syncing_services = relationship("SyncingServices", back_populates="user")
+User.syncing_services = relationship(
+    "SyncingServices",
+    back_populates="user",
+    cascade="all, delete",
+)
 
 
 async def create_all_tables():

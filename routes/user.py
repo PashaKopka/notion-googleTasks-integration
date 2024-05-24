@@ -137,7 +137,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ):
     user = await UserDB.get_by_email(form_data.username, db)
-    if not user or verify_password(form_data.password, user.password):
+    if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     access_token, expired_in = generate_access_token(user)
     logger.info(f"User {user.email} logged in")

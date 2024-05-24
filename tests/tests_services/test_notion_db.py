@@ -4,6 +4,7 @@ import datetime
 import pytest
 from aioresponses import aioresponses
 
+from models.models import SyncedItem, SyncingServices, User
 from services.notion.notion_db import NotionDB
 from services.service import Item
 
@@ -52,22 +53,46 @@ def item_data(item):
 
 
 @pytest.fixture
-def notion_db():
-    return NotionDB(
-        syncing_service_id="syncing_service_id",
+async def user(db):
+    user = User(email="test_notion_db@test.com", password="password")
+    yield await user.save(db)
+    await user.delete(db)
+
+
+@pytest.fixture
+async def syncing_service(db, user):
+    syncing_service = SyncingServices(
+        user_id=user.id,
+        service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
+        service_notion_data={
+            "duplicated_template_id": "duplicated_template_id",
+            "title_prop_name": "title_prop_name",
+        },
+    )
+    yield await syncing_service.save(db)
+    await syncing_service.delete(db)
+
+
+@pytest.fixture
+async def notion_db(db, syncing_service):
+    notion_db = NotionDB(
+        syncing_service_id=syncing_service.id,
         database_id=DATABASE_ID,
         token=TOKEN,
         title_prop_name=TITLE_PROP_NAME,
+        db=db,
     )
+    return notion_db
 
 
-@pytest.fixture(autouse=True)
-def mock_save_sync_ids(mocker):
-    return mocker.patch("services.notion.notion_db.NotionDB._save_sync_ids")
+async def test_save_sync_ids(notion_db, item, db):
+    await notion_db._save_sync_ids(item)
+    db_item = await SyncedItem.get_by_sync_id(db, notion_id=item.notion_id)
+    assert db_item is not None
+    await db_item.delete(db)
 
 
-@pytest.mark.asyncio
-async def test_add_item(notion_db, item, item_data):
+async def test_add_item(notion_db, item, item_data, db):
     with aioresponses() as m:
         m.post(CREATE_PAGE_URL, payload={"id": item.notion_id})
 
@@ -81,8 +106,12 @@ async def test_add_item(notion_db, item, item_data):
             json=item_data,
         )
 
+    # Check if item is stored in the database
+    db_item = await SyncedItem.get_by_sync_id(db, notion_id=item.notion_id)
+    assert db_item is not None
+    await db_item.delete(db)
 
-@pytest.mark.asyncio
+
 async def test_update_item(notion_db, item, item_data):
     with aioresponses() as m:
         m.patch(PAGE_URL_FORMAT.format(item.notion_id), payload={"some": "data"})
@@ -98,7 +127,6 @@ async def test_update_item(notion_db, item, item_data):
         )
 
 
-@pytest.mark.asyncio
 async def test_get_item_by_id(notion_db, item, item_data):
     item_data.update({"last_edited_time": DATETIME.isoformat()})
     with aioresponses() as m:
@@ -116,7 +144,6 @@ async def test_get_item_by_id(notion_db, item, item_data):
         )
 
 
-@pytest.mark.asyncio
 async def test_get_all_items(notion_db, item, item_data):
     item_data.update({"last_edited_time": DATETIME.isoformat()})
     with aioresponses() as m:

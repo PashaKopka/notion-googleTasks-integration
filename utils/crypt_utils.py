@@ -89,6 +89,6 @@ def verify_password(password: str, hashed_password: str) -> bool:
         password.encode("utf-8"),
         SALT,
         ENCODING_ITERATIONS,
-    )
+    ).hex()
 
     return new_hashed_password == hashed_password  # TODO test login

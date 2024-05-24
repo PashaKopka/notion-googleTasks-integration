@@ -4,6 +4,7 @@ import datetime
 import pytest
 from aioresponses import aioresponses
 
+from models.models import SyncedItem, SyncingServices, User
 from services.google_tasks.google_tasks import GTasksList
 from services.service import Item
 
@@ -32,9 +33,30 @@ def item():
 
 
 @pytest.fixture
-def tasks_list():
+async def user(db):
+    user = User(email="test_google_tasks@test.com", password="password")
+    yield await user.save(db)
+    await user.delete(db)
+
+
+@pytest.fixture
+async def syncing_service(db, user):
+    syncing_service = SyncingServices(
+        user_id=user.id,
+        service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
+        service_notion_data={
+            "duplicated_template_id": "duplicated_template_id",
+            "title_prop_name": "title_prop_name",
+        },
+    )
+    yield await syncing_service.save(db)
+    await syncing_service.delete(db)
+
+
+@pytest.fixture
+def tasks_list(syncing_service, db):
     return GTasksList(
-        syncing_service_id="syncing_service_id",
+        syncing_service_id=syncing_service.id,
         client_config={
             "tasks_list_id": TASK_LIST_ID,
             "token": "token",
@@ -43,12 +65,8 @@ def tasks_list():
             "client_secret": CLIENT_SECRET,
             "refresh_token": REFRESH_TOKEN,
         },
+        db=db,
     )
-
-
-@pytest.fixture(autouse=True)
-def mock_save_sync_ids(mocker):
-    return mocker.patch("services.google_tasks.google_tasks.GTasksList._save_sync_ids")
 
 
 def test_add_task_url(tasks_list):
@@ -63,8 +81,7 @@ def test_get_all_tasks_url(tasks_list):
     assert tasks_list._get_all_tasks_url == GET_ALL_URL
 
 
-@pytest.mark.asyncio
-async def test_add_item(tasks_list, item):
+async def test_add_item(tasks_list, item, db):
     with aioresponses() as m:
         m.post(
             ADD_URL,
@@ -89,8 +106,11 @@ async def test_add_item(tasks_list, item):
             },
         )
 
+    db_item = await SyncedItem.get_by_sync_id(db, notion_id=item.notion_id)
+    assert db_item is not None
+    await db_item.delete(db)
 
-@pytest.mark.asyncio
+
 async def test_update_item(tasks_list, item):
     with aioresponses() as m:
         m.put(
@@ -113,7 +133,6 @@ async def test_update_item(tasks_list, item):
         )
 
 
-@pytest.mark.asyncio
 async def test_get_item_by_id(tasks_list, item):
     with aioresponses() as m:
         m.get(
@@ -135,7 +154,6 @@ async def test_get_item_by_id(tasks_list, item):
         )
 
 
-@pytest.mark.asyncio
 async def test_get_all_items(tasks_list, item):
     with aioresponses() as m:
         m.get(
@@ -161,7 +179,6 @@ async def test_get_all_items(tasks_list, item):
         )
 
 
-@pytest.mark.asyncio
 async def test_refresh_token(tasks_list):
     with aioresponses() as m:
         m.post(
