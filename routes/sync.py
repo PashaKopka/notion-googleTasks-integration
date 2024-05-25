@@ -1,15 +1,15 @@
 import asyncio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logger import get_logger
 from models.models import SyncingServices, get_db
+from schemas.user import User
 from services.google_tasks.google_tasks import GTasksList
 from services.notion.notion_db import NotionDB
 from synchronizer import NotionTasksSynchronizer
 from utils.crypt_utils import validate_token
-from utils.pydantic_class import User
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -64,7 +64,7 @@ async def restart_sync():
         logger.info(f"Restarted sync for service {service.id} with task_id {id(task)}")
 
 
-@router.post("/start_sync")
+@router.post("/start_sync", status_code=status.HTTP_201_CREATED)
 async def start_sync(
     user: User = Depends(validate_token),
     db: AsyncSession = Depends(get_db),
@@ -91,10 +91,9 @@ async def start_sync(
     )
 
     logger.info(f"User {user.email} started sync with task_id {id(task)}")
-    return {"task_id": id(task)}
 
 
-@router.post("/stop_sync")
+@router.post("/stop_sync", status_code=status.HTTP_204_NO_CONTENT)
 async def stop_sync(
     user: User = Depends(validate_token),
     db: AsyncSession = Depends(get_db),

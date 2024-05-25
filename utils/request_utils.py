@@ -3,8 +3,9 @@ from collections import defaultdict
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import User as UserDB, get_db
-from utils.pydantic_class import User
+from models.models import User as UserDB
+from models.models import get_db
+from schemas.user import User
 
 
 def get_user_by_session_state(session: defaultdict):

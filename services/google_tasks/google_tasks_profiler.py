@@ -48,7 +48,7 @@ class GTasksProfiler(AbstractProfiler):
         self._headers["Authorization"] = f"Bearer {data['access_token']}"
 
     @refresh_token
-    def get_lists(self) -> list[dict]:
+    def get_lists(self) -> dict[str, dict]:
         response = self._session.get(
             self.GET_TASK_LISTS_URL,
             headers=self._headers,
@@ -57,7 +57,7 @@ class GTasksProfiler(AbstractProfiler):
         tasks_data = response.json()
         return self._database_result(tasks_data.get("items", []))
 
-    def _database_result(self, results: list[dict]) -> dict:
+    def _database_result(self, results: list[dict]) -> dict[str, dict]:
         return {
             data["id"]: {
                 "title": data["title"],

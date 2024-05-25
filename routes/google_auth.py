@@ -2,14 +2,15 @@ import json
 
 import google_auth_oauthlib
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import GOOGLE_API_SCOPES, GOOGLE_CLIENT_SECRET_FILE, HOST
 from logger import get_logger
 from models.models import get_db
-from routes.routes_utils import create_or_update_syncing_service
+from utils.routes_utils import create_or_update_syncing_service
+from schemas.user import User
 from utils.crypt_utils import validate_token
-from utils.pydantic_class import User
 from utils.request_utils import get_user_by_session_state, set_user_by_session_state
 
 router = APIRouter()
@@ -63,7 +64,7 @@ async def save_google_connection(
     return redirect_to_home
 
 
-@router.get("/connect")
+@router.get("/connect", response_class=PlainTextResponse)
 async def connect_google_tasks(user: User = Depends(validate_token)):
     logger.info(f"User {user.email} start connecting Google Tasks")
 

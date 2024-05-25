@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, Form, HTTPException
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,16 +6,90 @@ from logger import get_logger
 from models.models import SyncingServices
 from models.models import User as UserDB
 from models.models import get_db
+from schemas.auth import Token
+from schemas.user import User
+from schemas.user_data import GoogleTasksOptions, NotionOptions, Options, UserData
 from services.google_tasks.google_tasks_profiler import GTasksProfiler
 from services.notion.notion_profiler import NotionProfiler
 from utils.crypt_utils import generate_access_token, validate_token, verify_password
-from utils.pydantic_class import User
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
-@router.get("/user_data")
+def get_notion_dbs(syncing_service):
+    try:
+        notion_profiler = NotionProfiler(
+            syncing_service.service_notion_data["access_token"],
+        )
+        return notion_profiler.get_lists()
+    except Exception as e:
+        logger.error(
+            f"Error while getting notion data for syncing_service {syncing_service.id}: {e}"
+        )
+        return {}
+
+
+def get_google_tasks_lists(syncing_service):
+    try:
+        google_tasks_profiler = GTasksProfiler(
+            syncing_service.service_google_tasks_data,
+        )
+        return google_tasks_profiler.get_lists()
+    except Exception as e:
+        logger.error(
+            f"Error while getting google data for syncing_service {syncing_service.id}: {e}"
+        )
+        return {}
+
+
+async def generate_user_data(user, syncing_service, db):
+    dbs = get_notion_dbs(syncing_service)
+    lists = get_google_tasks_lists(syncing_service)
+
+    if not dbs:
+        # if dbs is empty, it means that there was an error while getting notion data
+        # so we show that user is not connected to notion
+        notion_data = {}
+    else:
+        notion_data = syncing_service.service_notion_data or {}
+
+    if not lists:
+        # if lists is empty, it means that there was an error while getting google data
+        # so we show that user is not connected to google tasks
+        google_data = {}
+    else:
+        google_data = syncing_service.service_google_tasks_data or {}
+
+    is_ready = await syncing_service.ready_to_start_sync(db)
+
+    notion_options = NotionOptions(
+        is_connected=bool(notion_data),
+        chosed_list=notion_data.get("duplicated_template_id"),
+        title_prop_name=notion_data.get("title_prop_name"),
+        available_lists=dbs,
+    )
+    google_options = GoogleTasksOptions(
+        is_connected=bool(google_data),
+        available_lists=lists,
+        chosed_list=google_data.get("tasks_list_id"),
+    )
+    options = Options(
+        notion=notion_options,
+        google_tasks=google_options,
+    )
+    result = UserData(
+        username=user.email,
+        is_ready=is_ready,
+        is_syncing_service_ready=syncing_service.ready,
+        is_active=syncing_service.is_active,
+        options=options,
+    )
+
+    return result
+
+
+@router.get("/user_data", response_model=UserData)
 async def get_user_data(
     user: User = Depends(validate_token),
     db: AsyncSession = Depends(get_db),
@@ -26,51 +100,10 @@ async def get_user_data(
     if not syncing_service:
         return {"username": user.email, "is_syncing_service_ready": False}
 
-    try:
-        notion_profiler = NotionProfiler(
-            syncing_service.service_notion_data["access_token"],
-        )
-        dbs = notion_profiler.get_lists()
-    except Exception as e:
-        logger.error(f"Error while getting notion data for user {user.email}: {e}")
-        dbs = []
-
-    try:
-        google_tasks_profiler = GTasksProfiler(
-            syncing_service.service_google_tasks_data,
-        )
-        lists = google_tasks_profiler.get_lists()
-    except Exception as e:
-        logger.error(f"Error while getting google data for user {user.email}: {e}")
-        lists = []
-
-    notion_data = syncing_service.service_notion_data or {}
-    google_data = syncing_service.service_google_tasks_data or {}
-
-    is_ready = await syncing_service.ready_to_start_sync(db)
-
-    return {
-        "username": user.email,
-        "is_ready": is_ready,
-        "is_syncing_service_ready": syncing_service.ready,
-        "is_active": syncing_service.is_active,
-        "options": {
-            "notion": {
-                "is_connected": bool(notion_data),
-                "chosed_list": notion_data.get("duplicated_template_id"),
-                "title_prop_name": notion_data.get("title_prop_name"),
-                "available_lists": dbs,
-            },
-            "google_tasks": {
-                "is_connected": bool(google_data),
-                "available_lists": lists,
-                "chosed_list": google_data.get("tasks_list_id"),
-            },
-        },
-    }
+    return await generate_user_data(user, syncing_service, db)
 
 
-@router.post("/user_data")
+@router.post("/user_data", status_code=status.HTTP_201_CREATED, response_model=UserData)
 async def save_user_data(
     user: User = Depends(validate_token),
     google_tasks_list_id: str = Body(None),
@@ -94,7 +127,7 @@ async def save_user_data(
     if notion_title_prop_name:
         notion_data["title_prop_name"] = notion_title_prop_name
 
-    await SyncingServices.update(
+    service = await SyncingServices.update(
         user_id=user.id,
         values={
             "service_google_tasks_data": google_tasks_data,
@@ -102,11 +135,10 @@ async def save_user_data(
         },
         db=db,
     )
+    return service
 
-    return {}
 
-
-@router.post("/register")
+@router.post("/register", response_model=Token)
 async def register(
     username: str = Form(None),
     password: str = Form(None),
@@ -131,7 +163,7 @@ async def register(
     }
 
 
-@router.post("/token")
+@router.post("/token", response_model=Token)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
