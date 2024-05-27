@@ -134,7 +134,7 @@ def test_stop_sync_no_syncing_service(client, auth_header):
     assert result.json() == {"detail": "Syncing service not found"}
 
 
-async def test_stop_sync_no_syncing_service(client, auth_header, syncing_service, db):
+async def test_stop_sync_no_task(client, auth_header, syncing_service, db):
     result = client.post(
         "/sync/stop_sync",
         headers=auth_header,
@@ -146,7 +146,7 @@ async def test_stop_sync_no_syncing_service(client, auth_header, syncing_service
     # assert service.task_id is None  # TODO fix this
 
 
-async def test_stop_sync_no_syncing_service(
+async def test_stop_sync(
     client, auth_header, syncing_service, mock_asyncio_all_tasks, db
 ):
     result = client.post(
