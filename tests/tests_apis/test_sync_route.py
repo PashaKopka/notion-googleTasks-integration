@@ -141,9 +141,9 @@ async def test_stop_sync_no_task(client, auth_header, syncing_service, db):
     )
     assert result.status_code == 204
 
-    # service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
-    # assert not service.is_active
-    # assert service.task_id is None  # TODO fix this
+    service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
+    assert not service.is_active
+    assert service.task_id is None
 
 
 async def test_stop_sync(
@@ -157,6 +157,6 @@ async def test_stop_sync(
 
     assert fake_task.cancled is True
 
-    # service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
-    # assert not service.is_active
-    # assert service.task_id is None  # TODO fix this
+    service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
+    assert not service.is_active
+    assert service.task_id is None

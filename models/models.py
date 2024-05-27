@@ -62,12 +62,20 @@ class User(BaseModel):
     async def get_by_id(cls, id_: str, db: AsyncSession) -> "User":
         result = await db.execute(select(User).where(User.id == id_))
         user = result.scalars().first()
+
+        if user is not None:
+            await db.refresh(user)
+
         return user
 
     @classmethod
     async def get_by_email(cls, email: str, db: AsyncSession) -> "User":
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalars().first()
+
+        if user is not None:
+            await db.refresh(user)
+
         return user
 
 
@@ -116,6 +124,10 @@ class SyncingServices(BaseModel):
             select(SyncingServices).where(SyncingServices.ready == True)
         )
         services = results.scalars().all()
+
+        if services:
+            await db.refresh_all(services)
+
         return services
 
     @classmethod
@@ -126,6 +138,10 @@ class SyncingServices(BaseModel):
             select(SyncingServices).where(SyncingServices.user_id == user_id)
         )
         service = result.scalars().first()
+
+        if service is not None:
+            await db.refresh(service)
+
         return service
 
     async def ready_to_start_sync(self, db: AsyncSession) -> bool:
@@ -167,8 +183,13 @@ class SyncedItem(BaseModel):
             cls.get_column_by_name(key) == value for key, value in kwargs.items()
         ]
 
-        item = await db.execute(select(SyncedItem).filter(*filters))
-        return item.scalars().first()
+        result = await db.execute(select(SyncedItem).filter(*filters))
+        item = result.scalars().first()
+
+        if item is not None:
+            await db.refresh(item)
+
+        return item
 
     @classmethod
     def get_column_by_name(cls, column_name: str):
