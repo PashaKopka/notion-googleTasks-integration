@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from logger import get_logger
@@ -71,7 +71,7 @@ async def start_sync(
 ):
     service = await SyncingServices.get_service_by_user_id(user.id, db)
     if not service or not await service.ready_to_start_sync(db):
-        return {"error": "Not all services are connected"}
+        raise HTTPException(status_code=400, detail="Not all services are connected")
 
     notion_data = service.service_notion_data
     google_data = service.service_google_tasks_data
@@ -99,6 +99,9 @@ async def stop_sync(
     db: AsyncSession = Depends(get_db),
 ):
     service = await SyncingServices.get_service_by_user_id(user.id, db)
+    if not service:
+        raise HTTPException(status_code=400, detail="Syncing service not found")
+
     task_id = service.task_id
     tasks = asyncio.all_tasks()
     for task in tasks:

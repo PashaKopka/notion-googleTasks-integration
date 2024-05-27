@@ -1,11 +1,14 @@
 import asyncio
+from contextlib import ExitStack
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from config import SQLALCHEMY_TEST_DATABASE_URL
-from models.models import BaseModel
+from main import app as actual_app
+from models.models import BaseModel, get_db
 
 
 @pytest.fixture(scope="session")
@@ -18,10 +21,14 @@ def engine():
 @pytest.fixture(scope="session", autouse=True)
 async def create(engine):
     async with engine.begin() as conn:
+        # drop all tables in case previous test run failed
+        await conn.run_sync(BaseModel.metadata.drop_all)
+
         await conn.run_sync(BaseModel.metadata.create_all)
     yield
     async with engine.begin() as conn:
         await conn.run_sync(BaseModel.metadata.drop_all)
+
 
 @pytest.fixture(scope="session")
 async def sessionmanager(engine):
@@ -43,16 +50,26 @@ async def db(sessionmanager):
             await session.rollback()
 
 
-# @pytest.fixture(scope="session")
-# def event_loop(request):
-#     loop = asyncio.get_event_loop_policy().new_event_loop()
-#     yield loop
-#     loop.close()
-
-
 @pytest.fixture(scope="session")
 def event_loop():
     policy = asyncio.get_event_loop_policy()
     loop = policy.new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture()
+def app(sessionmanager):
+    async def override_get_db():
+        async with sessionmanager() as db:
+            yield db
+
+    actual_app.dependency_overrides[get_db] = override_get_db
+    with ExitStack():
+        yield actual_app
+
+
+@pytest.fixture()
+def client(app):
+    with TestClient(app) as c:
+        yield c

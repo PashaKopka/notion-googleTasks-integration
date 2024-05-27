@@ -98,7 +98,7 @@ async def get_user_data(
 
     syncing_service = await SyncingServices.get_service_by_user_id(user.id, db)
     if not syncing_service:
-        return {"username": user.email, "is_syncing_service_ready": False}
+        raise HTTPException(status_code=400, detail="Syncing service not found")
 
     return await generate_user_data(user, syncing_service, db)
 
@@ -115,7 +115,7 @@ async def save_user_data(
 
     syncing_service = await SyncingServices.get_service_by_user_id(user.id, db)
     if not syncing_service:
-        return {"error": "Syncing service not found"}
+        raise HTTPException(status_code=400, detail="Syncing service not found")
 
     google_tasks_data = syncing_service.service_google_tasks_data
     notion_data = syncing_service.service_notion_data
@@ -135,7 +135,7 @@ async def save_user_data(
         },
         db=db,
     )
-    return service
+    return await generate_user_data(user, service, db)
 
 
 @router.post("/register", response_model=Token)
