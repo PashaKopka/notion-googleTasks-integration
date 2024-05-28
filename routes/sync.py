@@ -10,6 +10,7 @@ from services.google_tasks.google_tasks import GTasksList
 from services.notion.notion_db import NotionDB
 from synchronizer import NotionTasksSynchronizer
 from utils.crypt_utils import validate_token
+from config import SYNC_WAIT_TIME
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -41,7 +42,7 @@ async def start_sync_notion_google_tasks(
     )
     while True:
         await syncer.sync()
-        await asyncio.sleep(10)
+        await asyncio.sleep(SYNC_WAIT_TIME)
 
 
 async def restart_sync():

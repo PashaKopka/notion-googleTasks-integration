@@ -126,7 +126,8 @@ class SyncingServices(BaseModel):
         services = results.scalars().all()
 
         if services:
-            await db.refresh_all(services)
+            for service in services:
+                await db.refresh(service)
 
         return services
 
