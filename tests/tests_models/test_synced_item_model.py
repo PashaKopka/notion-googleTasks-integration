@@ -28,11 +28,6 @@ async def user(db):
 async def syncing_service(db, user):
     syncing_service = SyncingService(
         user_id=user.id,
-        service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
-        service_notion_data={
-            "duplicated_template_id": "duplicated_template_id",
-            "title_prop_name": "title_prop_name",
-        },
     )
     yield await syncing_service.save(db)
     await syncing_service.delete(db)

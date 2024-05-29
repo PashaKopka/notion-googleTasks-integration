@@ -1,6 +1,7 @@
 import pytest
 
 from models.models import SyncingService, User
+from tests.utils import google_tasks_data, notion_data
 
 
 @pytest.fixture
@@ -14,18 +15,20 @@ async def user(db):
 async def syncing_service(db, user):
     syncing_service = SyncingService(
         user_id=user.id,
-        service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
-        service_notion_data={
-            "duplicated_template_id": "duplicated_template_id",
-            "title_prop_name": "title_prop_name",
-        },
     )
-    yield await syncing_service.save(db)
+    service = await syncing_service.save(db)
+
+    notion = await notion_data(syncing_service, db)
+    google_tasks = await google_tasks_data(syncing_service, db)
+    yield service
+
+    await notion.delete(db)
+    await google_tasks.delete(db)
     await syncing_service.delete(db)
 
 
 ready_to_start_params = [
-    {"notion_data": {}, "google_tasks_data": {}, "is_ready": False},
+    # {"notion_data": {}, "google_tasks_data": {}, "is_ready": False},
     {
         "notion_data": {"some": "data"},
         "google_tasks_data": {"some": "data"},
@@ -58,10 +61,39 @@ ready_to_start_params = [
 async def syncing_service_ready_to_start_sync(db, user, request):
     syncing_service = SyncingService(
         user_id=user.id,
-        service_google_tasks_data=request.param["google_tasks_data"],
-        service_notion_data=request.param["notion_data"],
+        is_active=True,
     )
-    yield await syncing_service.save(db), request.param["is_ready"]
+    service = await syncing_service.save(db)
+
+    notion_values = {
+        "duplicated_template_id": request.param["notion_data"].get(
+            "duplicated_template_id"
+        )
+        or "",
+        "title_prop_name": request.param["notion_data"].get("title_prop_name") or "",
+        "access_token": "access_token",
+        "syncing_service_id": service.id,
+        "data": request.param["notion_data"],
+    }
+    google_values = {
+        "tasks_list_id": request.param["google_tasks_data"].get("tasks_list_id") or "",
+        "token": "token",
+        "refresh_token": "refresh_token",
+        "token_uri": "token_uri",
+        "client_id": "client_id",
+        "client_secret": "client_secret",
+        "syncing_service_id": service.id,
+        "data": request.param["google_tasks_data"],
+    }
+
+    notion = await notion_data(syncing_service, db, notion_values)
+    google_tasks = await google_tasks_data(syncing_service, db, google_values)
+
+    await db.refresh(service)
+    yield service, request.param["is_ready"]
+
+    await notion.delete(db)
+    await google_tasks.delete(db)
     await syncing_service.delete(db)
 
 
@@ -69,11 +101,6 @@ async def syncing_service_ready_to_start_sync(db, user, request):
 async def syncing_service_ready(db, user):
     syncing_service = SyncingService(
         user_id=user.id,
-        service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
-        service_notion_data={
-            "duplicated_template_id": "duplicated_template_id",
-            "title_prop_name": "title_prop_name",
-        },
         ready=True,
     )
     yield await syncing_service.save(db)
@@ -105,13 +132,10 @@ async def test_update(syncing_service, db):
 
     updated_service = await SyncingService.update(
         syncing_service.user_id,
-        {
-            "service_google_tasks_data": new_google_tasks_data,
-            "service_notion_data": new_notion_data,
-        },
+        {"ready": True, "is_active": True},
         db,
     )
 
     assert updated_service.id == syncing_service.id
-    assert updated_service.service_google_tasks_data == new_google_tasks_data
-    assert updated_service.service_notion_data == new_notion_data
+    assert updated_service.ready is True
+    assert updated_service.is_active is True

@@ -95,6 +95,20 @@ class Data(BaseModel):
     def create_from_auth_data(cls, data, syncing_service_id: str) -> "Data":
         raise NotImplementedError
 
+    @classmethod
+    async def get_by_syncing_service_id(
+        cls, syncing_service_id: str, db: AsyncSession
+    ):
+        result = await db.execute(
+            select(cls).where(cls.syncing_service_id == syncing_service_id)
+        )
+        data = result.scalars().first()
+
+        if data is not None:
+            await db.refresh(data)
+
+        return data
+
 
 class NotionData(Data):
     __tablename__ = "notion_datas"

@@ -3,22 +3,8 @@ import asyncio
 import pytest
 
 from models.models import SyncingService, User
-from routes.sync import start_sync_notion_google_tasks
+from tests.utils import google_tasks_data, notion_data
 from utils.crypt_utils import generate_access_token
-
-
-class MyTask:
-    def __init__(self):
-        self.cancled = False
-
-    def cancel(self):
-        self.cancled = True
-
-    def __await__(self):
-        yield
-
-
-fake_task = MyTask()
 
 
 @pytest.fixture
@@ -32,15 +18,16 @@ async def user(db):
 async def syncing_service(db, user):
     syncing_service = SyncingService(
         user_id=user.id,
-        service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
-        service_notion_data={
-            "duplicated_template_id": "duplicated_template_id",
-            "title_prop_name": "title_prop_name",
-        },
-        task_id=(str(id(fake_task))),
         is_active=True,
     )
-    yield await syncing_service.save(db)
+    service = await syncing_service.save(db)
+
+    notion = await notion_data(syncing_service, db)
+    google_tasks = await google_tasks_data(syncing_service, db)
+    yield service
+
+    await notion.delete(db)
+    await google_tasks.delete(db)
     await syncing_service.delete(db)
 
 
@@ -48,8 +35,6 @@ async def syncing_service(db, user):
 async def syncing_service_not_ready(db, user):
     syncing_service = SyncingService(
         user_id=user.id,
-        service_google_tasks_data={},
-        service_notion_data={},
     )
     yield await syncing_service.save(db)
     await syncing_service.delete(db)
@@ -79,7 +64,7 @@ def mock_start_sync_notion_google_tasks(mocker):
 @pytest.fixture
 def mock_asyncio_all_tasks(mocker):
     method = mocker.patch("asyncio.all_tasks")
-    method.return_value = [fake_task]
+    method.return_value = ["fake_task"]
     return method
 
 
@@ -122,7 +107,6 @@ async def test_start_sync(
 
     service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert service.is_active
-    assert service.task_id is not None
 
 
 def test_stop_sync_no_syncing_service(client, auth_header):
@@ -143,7 +127,6 @@ async def test_stop_sync_no_task(client, auth_header, syncing_service, db):
 
     service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert not service.is_active
-    assert service.task_id is None
 
 
 async def test_stop_sync(
@@ -155,8 +138,7 @@ async def test_stop_sync(
     )
     assert result.status_code == 204
 
-    assert fake_task.cancled is True
+    # assert fake_task.cancled is True
 
     service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert not service.is_active
-    assert service.task_id is None

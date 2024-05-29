@@ -7,6 +7,7 @@ from aioresponses import aioresponses
 from models.models import SyncedItem, SyncingService, User
 from services.google_tasks.google_tasks import GTasksList
 from services.service import Item
+from tests.utils import google_tasks_data, notion_data
 
 pytest_plugins = ("pytest_asyncio",)
 
@@ -43,13 +44,16 @@ async def user(db):
 async def syncing_service(db, user):
     syncing_service = SyncingService(
         user_id=user.id,
-        service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
-        service_notion_data={
-            "duplicated_template_id": "duplicated_template_id",
-            "title_prop_name": "title_prop_name",
-        },
+        is_active=True,
     )
-    yield await syncing_service.save(db)
+    service = await syncing_service.save(db)
+
+    notion = await notion_data(syncing_service, db)
+    google_tasks = await google_tasks_data(syncing_service, db)
+    yield service
+
+    await notion.delete(db)
+    await google_tasks.delete(db)
     await syncing_service.delete(db)
 
 
