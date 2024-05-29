@@ -59,7 +59,6 @@ async def save_notion_connection(
     notion_data["title_prop_name"] = NOTION_TITLE_PROP_NAME
     await create_or_update_syncing_service(
         user_id=user.id,
-        google_tasks_data=None,
         notion_data=notion_data,
         db=db,
     )
@@ -68,7 +67,7 @@ async def save_notion_connection(
     return redirect_to_home
 
 
-@router.get("/connect", response_class=PlainTextResponse)
+@router.get("/connect")
 def connect_notion(user: User = Depends(validate_token)):
     logger.info(f"User {user.email} start connecting Notion")
 

@@ -2,7 +2,7 @@ import datetime
 
 import pytest
 
-from models.models import SyncedItem, SyncingServices, User
+from models.models import SyncedItem, SyncingService, User
 from services.service import Item
 
 
@@ -26,7 +26,7 @@ async def user(db):
 
 @pytest.fixture
 async def syncing_service(db, user):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
         service_notion_data={

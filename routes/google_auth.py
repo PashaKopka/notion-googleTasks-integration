@@ -56,7 +56,6 @@ async def save_google_connection(
     await create_or_update_syncing_service(
         user_id=user.id,
         google_tasks_data=credentials,
-        notion_data=None,
         db=db,
     )
 
@@ -64,7 +63,7 @@ async def save_google_connection(
     return redirect_to_home
 
 
-@router.get("/connect", response_class=PlainTextResponse)
+@router.get("/connect")
 async def connect_google_tasks(user: User = Depends(validate_token)):
     logger.info(f"User {user.email} start connecting Google Tasks")
 

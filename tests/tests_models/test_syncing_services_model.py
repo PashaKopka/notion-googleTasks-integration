@@ -1,6 +1,6 @@
 import pytest
 
-from models.models import SyncingServices, User
+from models.models import SyncingService, User
 
 
 @pytest.fixture
@@ -12,7 +12,7 @@ async def user(db):
 
 @pytest.fixture
 async def syncing_service(db, user):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
         service_notion_data={
@@ -56,7 +56,7 @@ ready_to_start_params = [
 
 @pytest.fixture(params=ready_to_start_params)
 async def syncing_service_ready_to_start_sync(db, user, request):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data=request.param["google_tasks_data"],
         service_notion_data=request.param["notion_data"],
@@ -67,7 +67,7 @@ async def syncing_service_ready_to_start_sync(db, user, request):
 
 @pytest.fixture
 async def syncing_service_ready(db, user):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
         service_notion_data={
@@ -86,14 +86,14 @@ async def test_ready_to_start_sync(syncing_service_ready_to_start_sync, db):
 
 
 async def test_get_service_by_user_id(syncing_service, user, db):
-    service = await SyncingServices.get_service_by_user_id(user.id, db)
+    service = await SyncingService.get_service_by_user_id(user.id, db)
     assert service is not None
     assert service.id == syncing_service.id
     assert service.user_id == user.id
 
 
 async def test_get_ready_services(syncing_service_ready, db):
-    services = await SyncingServices.get_ready_services(db)
+    services = await SyncingService.get_ready_services(db)
     assert len(services) == 1
     assert services[0].id == syncing_service_ready.id
     assert services[0].ready
@@ -103,7 +103,7 @@ async def test_update(syncing_service, db):
     new_google_tasks_data = {"new": "data"}
     new_notion_data = {"new": "data"}
 
-    updated_service = await SyncingServices.update(
+    updated_service = await SyncingService.update(
         syncing_service.user_id,
         {
             "service_google_tasks_data": new_google_tasks_data,

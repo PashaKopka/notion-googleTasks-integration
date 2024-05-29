@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 
 @dataclass(slots=True)
-class Item:
+class Item: # TODO in schemas
     name: str
     status: bool
     updated_at: datetime = field(compare=False)

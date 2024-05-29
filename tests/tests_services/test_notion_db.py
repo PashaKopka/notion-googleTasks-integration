@@ -4,7 +4,7 @@ import datetime
 import pytest
 from aioresponses import aioresponses
 
-from models.models import SyncedItem, SyncingServices, User
+from models.models import SyncedItem, SyncingService, User
 from services.notion.notion_db import NotionDB
 from services.service import Item
 
@@ -61,7 +61,7 @@ async def user(db):
 
 @pytest.fixture
 async def syncing_service(db, user):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
         service_notion_data={

@@ -99,48 +99,46 @@ class NotionDB(AbstractService):
         }
         self._database_url = self.DATABASE_URL_FORMAT.format(database_id)
         self._title_prop_name = title_prop_name
-        self._session = aiohttp.ClientSession()
 
         self._data_adapter = NotionDBDataAdapter(title_prop_name, database_id)
         self._syncing_service_id = syncing_service_id
 
         self._db = db
+        self._session = aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=60)
+        )
 
     async def get_all_items(self) -> list[Item]:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self._database_url, headers=self._headers
-            ) as response:
-                data = await response.json()
-                return self._data_adapter.dicts_to_items(data.get("results", []))
+        async with self._session.post(
+            self._database_url, headers=self._headers
+        ) as response:
+            data = await response.json()
+            return self._data_adapter.dicts_to_items(data.get("results", []))
 
     async def get_item_by_id(self, item_id: str) -> Item:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                self.PAGE_URL_FORMAT.format(item_id), headers=self._headers
-            ) as response:
-                data = await response.json()
-                return self._data_adapter.dict_to_item(data)
+        async with self._session.get(
+            self.PAGE_URL_FORMAT.format(item_id), headers=self._headers
+        ) as response:
+            data = await response.json()
+            return self._data_adapter.dict_to_item(data)
 
     async def update_item(self, item: Item) -> str:
-        async with aiohttp.ClientSession() as session:
-            async with session.patch(
-                self.PAGE_URL_FORMAT.format(item.notion_id),
-                headers=self._headers,
-                json=self._data_adapter.item_to_dict(item),
-            ) as response:
-                return await response.json()
+        async with self._session.patch(
+            self.PAGE_URL_FORMAT.format(item.notion_id),
+            headers=self._headers,
+            json=self._data_adapter.item_to_dict(item),
+        ) as response:
+            return await response.json()
 
     async def add_item(self, item: Item) -> str:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self.CREATE_PAGE_URL,
-                headers=self._headers,
-                json=self._data_adapter.item_to_dict(item),
-            ) as response:
-                data = await response.json()
-                item.notion_id = data.get("id")
-                await self._save_sync_ids(item)
+        async with self._session.post(
+            self.CREATE_PAGE_URL,
+            headers=self._headers,
+            json=self._data_adapter.item_to_dict(item),
+        ) as response:
+            data = await response.json()
+            item.notion_id = data.get("id")
+            await self._save_sync_ids(item)
 
     async def _save_sync_ids(self, item: Item) -> None:
         synced_item = SyncedItem.create_from_item(item, self._syncing_service_id)

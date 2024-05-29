@@ -24,8 +24,8 @@ class GoogleTasksOptions:
 
 @dataclasses.dataclass(slots=True)
 class Options:
-    notion: NotionOptions
-    google_tasks: GoogleTasksOptions
+    notion: NotionOptions | None
+    google_tasks: GoogleTasksOptions | None
 
 
 @dataclasses.dataclass(slots=True)

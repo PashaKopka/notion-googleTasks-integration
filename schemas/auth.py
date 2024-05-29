@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel
+from pydantic import dataclasses
 
 
-class Token(BaseModel):
+@dataclasses.dataclass(slots=True)
+class Token:
     access_token: str
     token_type: str
     expired_in: datetime.datetime

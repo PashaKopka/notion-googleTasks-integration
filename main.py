@@ -10,7 +10,16 @@ from logger import get_logger
 from models.models import create_all_tables
 from utils.request_utils import get_user_by_session_state, set_user_by_session_state
 
-app = FastAPI()
+
+async def lifespan(the_app):
+    logger.info("Starting application")
+    await create_all_tables()
+    await restart_sync()
+    yield
+    logger.info("Shutting down application")
+
+
+app = FastAPI(lifespan=lifespan)
 logger = get_logger(__name__)
 
 SESSION = defaultdict(dict)
@@ -46,9 +55,6 @@ set_user_to_session = set_user_by_session_state(SESSION)
 
 
 if __name__ == "__main__":
-    logger.info("Starting application")
-    asyncio.run(create_all_tables())
-    asyncio.run(restart_sync())
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

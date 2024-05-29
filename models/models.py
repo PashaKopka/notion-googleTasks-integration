@@ -1,4 +1,5 @@
 import asyncio
+from abc import abstractmethod
 from uuid import uuid4
 
 from sqlalchemy import JSON, ForeignKey, select, update
@@ -7,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.pool import NullPool
 
 from config import SQLALCHEMY_DATABASE_URL
+from schemas.services_auth_data import GoogleAuthData, NotionAuthData
 from services.service import Item
 
 engine = create_async_engine(SQLALCHEMY_DATABASE_URL, poolclass=NullPool)
@@ -30,7 +32,8 @@ class BaseModel(DeclarativeBase):
         if not db:
             raise ValueError("Database session is required")
 
-        self.id = str(uuid4())
+        if not self.id:
+            self.id = str(uuid4())
         db.add(self)
         await db.commit()
         await db.refresh(self)
@@ -51,6 +54,12 @@ class User(BaseModel):
     id: Mapped[str] = mapped_column(primary_key=True, index=True)
     email: Mapped[str] = mapped_column(unique=True, index=True)
     password: Mapped[str] = mapped_column()
+
+    syncing_services: Mapped[list["SyncingService"]] = relationship(
+        back_populates="user",
+        cascade="all, delete",
+        lazy="selectin",
+    )
 
     async def save(self, db: AsyncSession = None):
         from utils.crypt_utils import create_password
@@ -79,18 +88,95 @@ class User(BaseModel):
         return user
 
 
-class SyncingServices(BaseModel):
+class Data(BaseModel):
+    __abstract__ = True
+
+    @abstractmethod
+    def create_from_auth_data(cls, data, syncing_service_id: str) -> "Data":
+        raise NotImplementedError
+
+
+class NotionData(Data):
+    __tablename__ = "notion_datas"
+
+    id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    access_token: Mapped[str] = mapped_column()
+    duplicated_template_id: Mapped[str] = mapped_column()
+    title_prop_name: Mapped[str] = mapped_column(nullable=True)
+    data: Mapped[JSON] = mapped_column(type_=JSON)
+
+    syncing_service_id: Mapped[str] = mapped_column(ForeignKey("syncing_services.id"))
+    syncing_service: Mapped["SyncingService"] = relationship(
+        back_populates="notion_data",
+        lazy="selectin",
+    )
+
+    @classmethod
+    def create_from_auth_data(
+        cls,
+        data: NotionAuthData,
+        syncing_service_id: str,
+    ) -> "NotionData":
+        return cls(
+            access_token=data.access_token,
+            duplicated_template_id=data.duplicated_template_id,
+            data=data.data,
+            syncing_service_id=syncing_service_id,
+        )
+
+
+class GoogleTasksData(Data):
+    __tablename__ = "google_tasks_datas"
+
+    id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    token: Mapped[str] = mapped_column()
+    refresh_token: Mapped[str] = mapped_column()
+    token_uri: Mapped[str] = mapped_column()
+    client_id: Mapped[str] = mapped_column()
+    client_secret: Mapped[str] = mapped_column()
+    tasks_list_id: Mapped[str] = mapped_column(nullable=True)
+    data: Mapped[JSON] = mapped_column(type_=JSON)
+
+    syncing_service_id: Mapped[str] = mapped_column(ForeignKey("syncing_services.id"))
+    syncing_service: Mapped["SyncingService"] = relationship(
+        back_populates="google_tasks_data",
+        lazy="selectin",
+    )
+
+    @classmethod
+    def create_from_auth_data(
+        cls,
+        data: GoogleAuthData,
+        syncing_service_id: str,
+    ) -> "GoogleTasksData":
+        return cls(
+            token=data.token,
+            refresh_token=data.refresh_token,
+            token_uri=data.token_uri,
+            client_id=data.client_id,
+            client_secret=data.client_secret,
+            data=data.data,
+            syncing_service_id=syncing_service_id,
+        )
+
+
+class SyncingService(BaseModel):
     __tablename__ = "syncing_services"
 
     id: Mapped[str] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
-    service_notion_data: Mapped[JSON] = mapped_column(type_=JSON, nullable=True)
-    service_google_tasks_data: Mapped[JSON] = mapped_column(type_=JSON, nullable=True)
     ready: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=False)
-    task_id: Mapped[str] = mapped_column(nullable=True)
 
-    user = relationship("User", back_populates="syncing_services")
+    user: Mapped["User"] = relationship(
+        back_populates="syncing_services", lazy="selectin"
+    )
+    notion_data: Mapped["NotionData"] = relationship(
+        back_populates="syncing_service", lazy="selectin"
+    )
+    google_tasks_data: Mapped["GoogleTasksData"] = relationship(
+        back_populates="syncing_service", lazy="selectin"
+    )
 
     @classmethod
     async def update(
@@ -98,8 +184,8 @@ class SyncingServices(BaseModel):
         user_id: str,
         values: dict,
         db: AsyncSession,
-    ) -> "SyncingServices":
-        query = select(SyncingServices).where(SyncingServices.user_id == user_id)
+    ) -> "SyncingService":
+        query = select(SyncingService).where(SyncingService.user_id == user_id)
         result = await db.execute(query)
         service = result.scalars().first()
 
@@ -107,8 +193,8 @@ class SyncingServices(BaseModel):
             raise ValueError("Service not found")
 
         stmt = (
-            update(SyncingServices)
-            .where(SyncingServices.user_id == user_id)
+            update(SyncingService)
+            .where(SyncingService.user_id == user_id)
             .values(**values)
             .execution_options(synchronize_session="fetch")
         )
@@ -119,9 +205,9 @@ class SyncingServices(BaseModel):
         return service
 
     @classmethod
-    async def get_ready_services(cls, db: AsyncSession) -> list["SyncingServices"]:
+    async def get_ready_services(cls, db: AsyncSession) -> list["SyncingService"]:
         results = await db.execute(
-            select(SyncingServices).where(SyncingServices.ready == True)
+            select(SyncingService).where(SyncingService.ready == True)
         )
         services = results.scalars().all()
 
@@ -134,9 +220,9 @@ class SyncingServices(BaseModel):
     @classmethod
     async def get_service_by_user_id(
         cls, user_id: str, db: AsyncSession
-    ) -> "SyncingServices":
+    ) -> "SyncingService":
         result = await db.execute(
-            select(SyncingServices).where(SyncingServices.user_id == user_id)
+            select(SyncingService).where(SyncingService.user_id == user_id)
         )
         service = result.scalars().first()
 
@@ -146,16 +232,16 @@ class SyncingServices(BaseModel):
         return service
 
     async def ready_to_start_sync(self, db: AsyncSession) -> bool:
-        if not self.service_google_tasks_data or not self.service_notion_data:
+        if not self.google_tasks_data or not self.notion_data:
             return False
 
-        if not self.service_google_tasks_data.get("tasks_list_id"):
+        if not self.google_tasks_data.tasks_list_id:
             return False
 
-        if not self.service_notion_data.get("duplicated_template_id"):
+        if not self.notion_data.duplicated_template_id:
             return False
 
-        if not self.service_notion_data.get("title_prop_name"):
+        if not self.notion_data.title_prop_name:
             return False
 
         if not self.ready:
@@ -173,7 +259,7 @@ class SyncedItem(BaseModel):
     google_task_id: Mapped[str] = mapped_column()
     syncing_service_id: Mapped[str] = mapped_column(ForeignKey("syncing_services.id"))
 
-    syncing_service = relationship("SyncingServices")
+    syncing_service: Mapped["SyncingService"] = relationship(lazy="selectin")
 
     @classmethod
     async def get_by_sync_id(cls, db: AsyncSession, **kwargs) -> "SyncedItem":
@@ -203,13 +289,6 @@ class SyncedItem(BaseModel):
             google_task_id=item.google_task_id,
             syncing_service_id=syncing_service_id,
         )
-
-
-User.syncing_services = relationship(
-    "SyncingServices",
-    back_populates="user",
-    cascade="all, delete",
-)
 
 
 async def create_all_tables():

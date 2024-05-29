@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import pytest
 from pydantic import ValidationError
 
-from models.models import SyncingServices, User
+from models.models import SyncingService, User
 from schemas.user_data import UserData
 from utils.crypt_utils import generate_access_token
 
@@ -29,7 +29,7 @@ async def user(db):
 
 @pytest.fixture
 async def syncing_service(db, user):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
         service_notion_data={
@@ -179,7 +179,7 @@ async def test_save_user_data(client, auth_header, syncing_service, db):
     with not_raises(ValidationError):
         UserData(**response.json())
 
-    service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
+    service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert service.service_google_tasks_data["tasks_list_id"] == "new_tasks_list_id"
     assert service.service_notion_data["duplicated_template_id"] == "new_notion_list_id"
     assert service.service_notion_data["title_prop_name"] == "new_title_prop_name"

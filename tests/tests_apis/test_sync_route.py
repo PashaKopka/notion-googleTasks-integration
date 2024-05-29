@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from models.models import SyncingServices, User
+from models.models import SyncingService, User
 from routes.sync import start_sync_notion_google_tasks
 from utils.crypt_utils import generate_access_token
 
@@ -30,7 +30,7 @@ async def user(db):
 
 @pytest.fixture
 async def syncing_service(db, user):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data={"tasks_list_id": "tasks_list_id"},
         service_notion_data={
@@ -46,7 +46,7 @@ async def syncing_service(db, user):
 
 @pytest.fixture
 async def syncing_service_not_ready(db, user):
-    syncing_service = SyncingServices(
+    syncing_service = SyncingService(
         user_id=user.id,
         service_google_tasks_data={},
         service_notion_data={},
@@ -120,7 +120,7 @@ async def test_start_sync(
 
     mock_start_sync_notion_google_tasks.assert_called_once()
 
-    service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
+    service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert service.is_active
     assert service.task_id is not None
 
@@ -141,7 +141,7 @@ async def test_stop_sync_no_task(client, auth_header, syncing_service, db):
     )
     assert result.status_code == 204
 
-    service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
+    service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert not service.is_active
     assert service.task_id is None
 
@@ -157,6 +157,6 @@ async def test_stop_sync(
 
     assert fake_task.cancled is True
 
-    service = await SyncingServices.get_service_by_user_id(syncing_service.user_id, db)
+    service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert not service.is_active
     assert service.task_id is None
