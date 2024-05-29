@@ -2,9 +2,15 @@ import asyncio
 
 import pytest
 
+from config import REDIS_URL
 from models.models import SyncingService, User
+from redis_client import RedisClient
 from tests.utils import google_tasks_data, notion_data
 from utils.crypt_utils import generate_access_token
+
+redis_client = RedisClient(REDIS_URL)
+fake_task = asyncio.Future()
+fake_task.set_result(None)
 
 
 @pytest.fixture
@@ -62,9 +68,10 @@ def mock_start_sync_notion_google_tasks(mocker):
 
 
 @pytest.fixture
-def mock_asyncio_all_tasks(mocker):
+def mock_asyncio_all_tasks(mocker, syncing_service):
+    redis_client.set(syncing_service.id, str(id(fake_task)))
     method = mocker.patch("asyncio.all_tasks")
-    method.return_value = ["fake_task"]
+    method.return_value = [fake_task]
     return method
 
 
@@ -108,6 +115,9 @@ async def test_start_sync(
     service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert service.is_active
 
+    task_id = redis_client.get(service.id)
+    assert task_id
+
 
 def test_stop_sync_no_syncing_service(client, auth_header):
     result = client.post(
@@ -128,6 +138,9 @@ async def test_stop_sync_no_task(client, auth_header, syncing_service, db):
     service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert not service.is_active
 
+    task_id = redis_client.get(service.id)
+    assert not task_id
+
 
 async def test_stop_sync(
     client, auth_header, syncing_service, mock_asyncio_all_tasks, db
@@ -138,7 +151,8 @@ async def test_stop_sync(
     )
     assert result.status_code == 204
 
-    # assert fake_task.cancled is True
-
     service = await SyncingService.get_service_by_user_id(syncing_service.user_id, db)
     assert not service.is_active
+
+    task_id = redis_client.get(service.id)
+    assert not task_id

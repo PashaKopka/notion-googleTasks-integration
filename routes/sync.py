@@ -3,9 +3,10 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import SYNC_WAIT_TIME
+from config import REDIS_URL, SYNC_WAIT_TIME
 from logger import get_logger
 from models.models import SyncingService, get_db
+from redis_client import RedisClient
 from schemas.user import User
 from services.google_tasks.google_tasks import GTasksList
 from services.notion.notion_db import NotionDB
@@ -14,6 +15,8 @@ from utils.crypt_utils import validate_token
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+redis_client = RedisClient(REDIS_URL)
 
 
 async def start_sync_notion_google_tasks(
@@ -101,6 +104,7 @@ async def start_sync(
         )
     )
 
+    redis_client.set(service.id, str(id(task)))
     await SyncingService.update(
         user_id=user.id,
         values={"is_active": True},
@@ -119,7 +123,7 @@ async def stop_sync(
     if not service:
         raise HTTPException(status_code=400, detail="Syncing service not found")
 
-    task_id = "service.task_id"  # TODO redis
+    task_id = redis_client.get(service.id)
     tasks = asyncio.all_tasks()
     for task in tasks:
         if str(id(task)) == task_id:
@@ -134,3 +138,4 @@ async def stop_sync(
         values={"is_active": False},
         db=db,
     )
+    redis_client.delete(service.id)

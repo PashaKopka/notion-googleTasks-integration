@@ -3,7 +3,7 @@ from contextlib import ExitStack
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from config import SQLALCHEMY_TEST_DATABASE_URL
