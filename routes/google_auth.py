@@ -2,24 +2,20 @@ import json
 
 import google_auth_oauthlib
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import GOOGLE_API_SCOPES, GOOGLE_CLIENT_SECRET_FILE, HOST
 from logger import get_logger
 from models.models import get_db
-from utils.routes_utils import create_or_update_syncing_service
 from schemas.user import User
 from utils.crypt_utils import validate_token
-from utils.request_utils import get_user_by_session_state, set_user_by_session_state
+from utils.request_utils import get_user_from_session, set_user_to_session
+from utils.routes_utils import create_or_update_syncing_service
 
 router = APIRouter()
 logger = get_logger(__name__)
 
-from main import SESSION, redirect_to_home
-
-get_user_from_session = get_user_by_session_state(SESSION)
-set_user_to_session = set_user_by_session_state(SESSION)
+from main import redirect_to_home
 
 
 def get_google_task_data(credentials):

@@ -1,5 +1,4 @@
 import asyncio
-from collections import defaultdict
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +7,6 @@ from fastapi.responses import RedirectResponse
 from config import FRONT_END_HOST
 from logger import get_logger
 from models.models import create_all_tables
-from utils.request_utils import get_user_by_session_state, set_user_by_session_state
 
 
 async def lifespan(the_app):
@@ -22,7 +20,6 @@ async def lifespan(the_app):
 app = FastAPI(lifespan=lifespan)
 logger = get_logger(__name__)
 
-SESSION = defaultdict(dict)
 redirect_to_home = RedirectResponse(FRONT_END_HOST)
 
 
@@ -49,9 +46,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-get_user_from_session = get_user_by_session_state(SESSION)
-set_user_to_session = set_user_by_session_state(SESSION)
 
 
 if __name__ == "__main__":
