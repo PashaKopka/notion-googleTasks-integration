@@ -24,3 +24,5 @@ ENCODING_ITERATIONS = os.getenv("ENCODING_ITERATIONS") or 100000
 SYNC_WAIT_TIME = os.getenv("SYNC_WAIT_TIME") or 10
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+TESTING = os.getenv("TESTING") == "True"

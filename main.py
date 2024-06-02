@@ -4,15 +4,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from config import FRONT_END_HOST
+from config import FRONT_END_HOST, TESTING
 from logger import get_logger
 from models.models import create_all_tables
 
 
 async def lifespan(the_app):
     logger.info("Starting application")
-    await create_all_tables()
-    await restart_sync()
+    if not TESTING:
+        await create_all_tables()
+        await restart_sync()
     yield
     logger.info("Shutting down application")
 
