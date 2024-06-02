@@ -2,8 +2,8 @@ import datetime
 
 import pytest
 
+from schemas.Item import Item
 from services.notion.notion_db import NotionDBDataAdapter as Adapter
-from services.service import Item
 
 DATE = datetime.datetime(2021, 10, 10, 10, 10, 10, 10)
 TITLE_PROP_NAME = "Name"

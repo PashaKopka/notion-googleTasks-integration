@@ -3,7 +3,7 @@ import datetime
 import pytest
 
 from services.google_tasks.google_tasks import GTasksDataAdapter as Adapter
-from services.service import Item
+from schemas.Item import Item
 
 
 @pytest.fixture

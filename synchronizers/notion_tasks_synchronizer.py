@@ -1,32 +1,12 @@
 import asyncio
-from abc import ABC, abstractmethod
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import SyncedItem
 from services.google_tasks.google_tasks import GTasksList
+from schemas.Item import Item
 from services.notion.notion_db import NotionDB
-from services.service import Item
-
-
-class Synchronizer(ABC):
-
-    @abstractmethod
-    def sync(self):
-        """
-        Sync 2 services data.
-        Algorithm:
-        1. Get data from service 1
-        2. Get data from service 2
-        3. Compare data from service 1 and service 2 to find not synced data, or updated data
-        4. Update data in service 1
-        5. Update data in service 2
-        6. Add new data to service 1 and get ids from it
-        7. Add new data to service 2 and get ids from it
-        8. Update data in service 1 with new ids from service 2
-        9. Update data in service 2 with new ids from service 1
-        """
-        raise NotImplementedError
+from synchronizers.synchronizer import Synchronizer
 
 
 class NotionTasksSynchronizer(Synchronizer):
@@ -44,8 +24,9 @@ class NotionTasksSynchronizer(Synchronizer):
         self._db = db
 
     async def sync(self):
-        notion_rows = await self._get_notion_rows()
-        google_tasks_list = await self._get_google_tasks_list()
+        notion_rows, google_tasks_list = await asyncio.gather(
+            self._get_notion_rows(), self._get_google_tasks_list()
+        )
 
         # compare notion_rows and google_tasks_list
         (
@@ -65,7 +46,9 @@ class NotionTasksSynchronizer(Synchronizer):
     async def _get_notion_rows(self) -> list[Item]:
         items = await self._notion_db.get_all_items()
         for item in items:
-            synced_item = await SyncedItem.get_by_sync_id(notion_id=item.notion_id, db=self._db)
+            synced_item = await SyncedItem.get_by_sync_id(
+                notion_id=item.notion_id, db=self._db
+            )
             if synced_item:
                 item.google_task_id = synced_item.google_task_id
 

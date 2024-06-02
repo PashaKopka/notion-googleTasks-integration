@@ -3,7 +3,7 @@ import datetime
 import pytest
 
 from models.models import SyncedItem, SyncingService, User
-from services.service import Item
+from schemas.Item import Item
 
 
 @pytest.fixture

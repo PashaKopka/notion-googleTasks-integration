@@ -10,7 +10,7 @@ from redis_client import RedisClient
 from schemas.user import User
 from services.google_tasks.google_tasks import GTasksList
 from services.notion.notion_db import NotionDB
-from synchronizer import NotionTasksSynchronizer
+from synchronizers.synchronizer_fabric import SynchronizerFabric
 from utils.db_utils import validate_token
 
 router = APIRouter()
@@ -40,11 +40,10 @@ async def start_sync_notion_google_tasks(
         db=db,
     )
 
-    syncer = NotionTasksSynchronizer(
+    syncer = SynchronizerFabric(
         notion_service=notion_db,
         google_tasks_service=google_tasks,
-        db=db,
-    )
+    ).get_synchronizer(db)
     while True:
         await syncer.sync()
         await asyncio.sleep(SYNC_WAIT_TIME)

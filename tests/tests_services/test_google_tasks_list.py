@@ -6,7 +6,7 @@ from aioresponses import aioresponses
 
 from models.models import SyncedItem, SyncingService, User
 from services.google_tasks.google_tasks import GTasksList
-from services.service import Item
+from schemas.Item import Item
 from tests.utils import google_tasks_data, notion_data
 
 pytest_plugins = ("pytest_asyncio",)

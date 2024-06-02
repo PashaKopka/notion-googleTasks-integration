@@ -10,7 +10,7 @@ from sqlalchemy.pool import NullPool
 from config import SQLALCHEMY_DATABASE_URL
 from logger import get_logger
 from schemas.services_auth_data import GoogleAuthData, NotionAuthData
-from services.service import Item
+from schemas.Item import Item
 from utils.crypt_utils import create_password, decode_dict, decode_str, encode
 
 engine = create_async_engine(SQLALCHEMY_DATABASE_URL, poolclass=NullPool)

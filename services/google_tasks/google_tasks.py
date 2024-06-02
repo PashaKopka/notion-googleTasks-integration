@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from logger import get_logger
 from models.models import SyncedItem
-from services.service import AbstractDataAdapter, AbstractService, Item
+from schemas.Item import Item
+from services.service import AbstractDataAdapter, AbstractService
 
 logger = get_logger(__name__)
 

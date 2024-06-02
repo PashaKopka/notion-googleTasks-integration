@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import NOTION_VERSION
 from models.models import SyncedItem
-from services.service import AbstractDataAdapter, AbstractService, Item
+from schemas.Item import Item
+from services.service import AbstractDataAdapter, AbstractService
 
 
 class NotionDBDataAdapter(AbstractDataAdapter):
@@ -104,9 +105,7 @@ class NotionDB(AbstractService):
         self._syncing_service_id = syncing_service_id
 
         self._db = db
-        self._session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=60)
-        )
+        self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
 
     async def get_all_items(self) -> list[Item]:
         async with self._session.post(

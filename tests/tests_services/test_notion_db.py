@@ -5,8 +5,8 @@ import pytest
 from aioresponses import aioresponses
 
 from models.models import SyncedItem, SyncingService, User
+from schemas.Item import Item
 from services.notion.notion_db import NotionDB
-from services.service import Item
 from tests.utils import google_tasks_data, notion_data
 
 pytest_plugins = ("pytest_asyncio",)
