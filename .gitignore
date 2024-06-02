@@ -8,3 +8,4 @@ venv/
 venv*/
 alembic.ini
 alembic/
+.coverage

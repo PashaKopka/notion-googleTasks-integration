@@ -57,7 +57,7 @@ def auth_header(token):
 
 def test_register_no_username(client):
     response = client.post(
-        "/register",
+        "/user/register",
         data={
             "username": "",
             "password": "",
@@ -69,7 +69,7 @@ def test_register_no_username(client):
 
 def test_register_no_password(client):
     response = client.post(
-        "/register",
+        "/user/register",
         data={
             "username": "test_user_route@test.com",
             "password": "",
@@ -81,7 +81,7 @@ def test_register_no_password(client):
 
 async def test_register(client, db):
     response = client.post(
-        "/register",
+        "/user/register",
         data={
             "username": "test_user_route@test.com",
             "password": "test",
@@ -103,7 +103,7 @@ async def test_register(client, db):
 
 def test_token_no_user(client):
     response = client.post(
-        "/token",
+        "/user/token",
         data={
             "username": "test_user_route@test.com",
             "password": "password",
@@ -115,7 +115,7 @@ def test_token_no_user(client):
 
 def test_token_wrong_password(client, user):
     response = client.post(
-        "/token",
+        "/user/token",
         data={
             "username": "test_user_route@test.com",
             "password": "wrong_password",
@@ -127,7 +127,7 @@ def test_token_wrong_password(client, user):
 
 def test_token(client, user):
     response = client.post(
-        "/token",
+        "/user/token",
         data={
             "username": "test_user_route@test.com",
             "password": "password",
@@ -141,13 +141,13 @@ def test_token(client, user):
 
 
 def test_get_user_data_no_syncing_service(client, auth_header):
-    response = client.get("/user_data", headers=auth_header)
+    response = client.get("/user/user_data", headers=auth_header)
     assert response.status_code == 400
     assert response.json() == {"detail": "Syncing service not found"}
 
 
 def test_get_user_data(client, auth_header, syncing_service):
-    response = client.get("/user_data", headers=auth_header)
+    response = client.get("/user/user_data", headers=auth_header)
     assert response.status_code == 200
 
     with not_raises(ValidationError):
@@ -156,7 +156,7 @@ def test_get_user_data(client, auth_header, syncing_service):
 
 def test_save_user_data_no_syncing_service(client, auth_header):
     response = client.post(
-        "/user_data",
+        "/user/user_data",
         json={
             "google_tasks_list_id": "new_tasks_list_id",
             "notion_list_id": "new_notion_list_id",
@@ -170,7 +170,7 @@ def test_save_user_data_no_syncing_service(client, auth_header):
 
 async def test_save_user_data(client, auth_header, syncing_service, db):
     response = client.post(
-        "/user_data",
+        "/user/user_data",
         headers=auth_header,
         json={
             "google_tasks_list_id": "new_tasks_list_id",
