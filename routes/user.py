@@ -11,7 +11,8 @@ from schemas.user import User
 from schemas.user_data import GoogleTasksOptions, NotionOptions, Options, UserData
 from services.google_tasks.google_tasks_profiler import GTasksProfiler
 from services.notion.notion_profiler import NotionProfiler
-from utils.crypt_utils import generate_access_token, validate_token, verify_password
+from utils.crypt_utils import verify_password
+from utils.db_utils import generate_access_token, validate_token
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -78,7 +79,6 @@ async def generate_user_data(
     result = UserData(
         username=user.email,
         is_ready=is_ready,
-        is_syncing_service_ready=syncing_service.ready,
         is_active=syncing_service.is_active,
         options=options,
     )

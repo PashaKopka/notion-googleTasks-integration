@@ -13,7 +13,8 @@ from config import (
 from logger import get_logger
 from models.models import get_db
 from schemas.user import User
-from utils.crypt_utils import encode, validate_token
+from utils.crypt_utils import encode
+from utils.db_utils import validate_token
 from utils.request_utils import get_user_from_session, set_user_to_session
 from utils.routes_utils import create_or_update_syncing_service
 

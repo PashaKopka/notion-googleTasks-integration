@@ -6,7 +6,7 @@ from config import REDIS_URL
 from models.models import SyncingService, User
 from redis_client import RedisClient
 from tests.utils import google_tasks_data, notion_data
-from utils.crypt_utils import generate_access_token
+from utils.db_utils import generate_access_token
 
 redis_client = RedisClient(REDIS_URL)
 fake_task = asyncio.Future()

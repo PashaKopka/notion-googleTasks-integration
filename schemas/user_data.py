@@ -32,6 +32,5 @@ class Options:
 class UserData:
     username: str
     is_ready: bool
-    is_syncing_service_ready: bool
     is_active: bool
     options: Options

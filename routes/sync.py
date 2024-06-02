@@ -11,7 +11,7 @@ from schemas.user import User
 from services.google_tasks.google_tasks import GTasksList
 from services.notion.notion_db import NotionDB
 from synchronizer import NotionTasksSynchronizer
-from utils.crypt_utils import validate_token
+from utils.db_utils import validate_token
 
 router = APIRouter()
 logger = get_logger(__name__)

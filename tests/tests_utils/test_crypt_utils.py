@@ -1,15 +1,10 @@
 import datetime
+
 import pytest
 
 from models.models import User
-from utils.crypt_utils import (
-    create_password,
-    decode_dict,
-    encode,
-    generate_access_token,
-    validate_token,
-    verify_password,
-)
+from utils.crypt_utils import create_password, decode_dict, encode, verify_password
+from utils.db_utils import generate_access_token, validate_token
 
 
 @pytest.fixture

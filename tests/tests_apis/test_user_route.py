@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from models.models import GoogleTasksData, NotionData, SyncingService, User
 from schemas.user_data import UserData
 from tests.utils import google_tasks_data, notion_data
-from utils.crypt_utils import generate_access_token
+from utils.db_utils import generate_access_token
 
 
 @contextmanager
